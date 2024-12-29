@@ -43,9 +43,48 @@ class Directory {
      * Checks if the other item is a directory
      * @param {*} otherContent can be any object techincally
      * One invariant of the file system is that every item must either be a SingleFile or Directory 
-     * @returns boolean that is true 
+     * @returns boolean  
      */
     isDirectory(otherContent) {
         return (otherContent instanceof Directory);
     }
+
+    /**
+     * @returns the name of the directory
+     */
+    getName() {
+        return this.name;
+    }
+
+    /**
+     * Opens up a specific file that matches the name of the specific file
+     * we are targeting, returns -1 if the file does not exist. Returns true otherwise
+     * @param {String} otherFile 
+     */
+    openFile(otherFile) {
+        for (let index = 0; index < this.contents.length; index++) {
+            // If the current index is a single file, compare the file names
+            if (this.contents[index] instanceof SingleFile) {
+                if (this.contents[index].getName() === otherFile) {
+                    this.contents[index].open();
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Checks if the name of a file (or directory) exists within a given directory
+     * @returns true if the item is inside the directory, false otherwise.
+     */
+    inDirectory(otherItem) {
+        for (let index = 0; index < this.contents.length; index++) {
+            if (this.contents[index].getName() === otherItem) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
 }
