@@ -32,4 +32,12 @@ class SingleFile {
             this.displayFunc(this.fileContent);
         }
     }
+
+    /**
+     * Gets the file name
+     * @returns the file name lol
+     */
+    getName() {
+        return this.fileName;
+    }
 }
