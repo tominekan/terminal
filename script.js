@@ -1,10 +1,7 @@
 /**
  * script.js
- *  Rework of the fake terminal to be more dynamic.
+ *  Rework of the fake terminal to be more extensible. Will probably uadd more updates the more I learn about CS.
  *  
- * As a little aside, across all .js files, 
- * 0 is returned when a function executes successfully,
- * otherwise, -1 is returned.
  * 
  * This is the Project Structure:
  * 
@@ -13,19 +10,13 @@
  *    |- Tetris1200.java
  *    |- designs.sketch
  *    |- klarg.py
- *    |- DataScience
- *        |- 2dlinreg.py
- *        |- kmeans.py
+ *    |- musingsv2.py
  * |- Contact
  *    |- contactinfo.txt
  *    |- resume.pdf
  * |- About
  *    |- whoiam.txt
  */
-
-import { File } from "./File";
-import { Directory } from "./directory";
-import { FileSystem } from "./fs"
 
 // Follows the Dracula color scheme
 const colors = {
@@ -36,6 +27,8 @@ const colors = {
     purple: "#BD93F9"
 };
 
+let fs = new FileSystem();
+fs.mkdir(["Contact", "About", "Projects"]);
 let openInNewWindow = (item) => window.open(item);
 // In Contact Directory
 let contactInfo = new SingleFile("contactinfo.txt", 
@@ -47,64 +40,49 @@ let resume = new SingleFile("resume.pdf", "resume.pdf");
 resume.setOpener(openInNewWindow);
 
 // In Projects Directory
-let tetris1200 = new SingleFile("Tetris1200.java", 
+fs.mkdir("Projects");
+fs.mkdir("About");
+fs.mkdir("Contact");
+
+fs.createFile(
+    "Projects/Tetris1200.java",
     `\n[[bu;${colors.pink};] TETRIS1200:] 
-[[i;${colors.purple};]INFO:]: This is a Tetris game built with Java and Swing UI. Tetris1200 features a retro UI, multiple game modes, game saves, and more.`);
+[[i;${colors.purple};]INFO:]: This is a Tetris game built with Java and Swing UI. Tetris1200 features a retro UI, multiple game modes, game saves, and more.`,
+    null
+);
 
-let designs = new SingleFile("designs.sketch", 
-    `\n[[bu;${colors.pink};]PERSONAL DESIGNS:]
-These are a collection of .sketch files of websites I've made. You can check them out on my github. https://github.com/tominekan`);
+fs.createFile(
+    "Projects/designs.sketch",
+     `\n[[bu;${colors.pink};]PERSONAL DESIGNS:]
+These are a collection of .sketch files of websites I've made. You can check them out on my github. https://github.com/tominekan`,
+    null
+);
 
-let klarg = new SingleFile("klarg.py", 
+fs.createFile(
+    "Projects/klarg.py",
     `\n[[bu;${colors.pink};]Kommand Line ARgument Parser:]
 [[i;${colors.purple};]INFO:] This is a python library (with an incredibly goofy name).
-It's is an incredibly easy to use command line argument parsing script using zero external libraries and a less-than 25kB file size.`);
+It's is an incredibly easy to use command line argument parsing script using zero external libraries and a less-than 25kB file size.`,
+    null
+)
 
-// Within Projects, we have DataScience Sub Directory
-let twoDlinreg = new SingleFile("2dlinreg.py", 
-    `\n[[bu;${colors.pink};]2D LINEAR REGRESSION:]
-[[i;${colors.purple};]INFO:] This is a command line statistical analysis application. It implements all algorithms by hand (they aren't performance optimized tho).
-It calculates and plots various statistics for a given dataset.`);
+fs.createFile(
+    "Projects/musingsv2.py",
+    `\n[[bu;${colors.pink};]Musings, my blog:]
+[[i;${colors.purple};]INFO:] This is a blog I designed in Lunacy and developed with Django and Bootstrap.
+It's a repository for my writings about the stuff I'm currently thinking about. I have a few more ideas to make it better as time goes on.`,
+    null
+)
 
-let kmeans = new SingleFile("kmeans.py", 
-    `\n[[bu;${colors.pink};]K-MEANS CLASSIFICATION ALGORITHM:]
-    [[i;${colors.purple};]INFO:] This is an hand-implementation of a machine learning algorithm.
-    It takes in estimated centroids and applies the K-Means algorithms to return new centroids.`)
 
 // In About Directory
 let whoiam = new SingleFile("whoiam.txt", 
-    `\nI'm Tomi Adenekan, a college freshman interested in coding, data analytics, and philosophy.
-Ever since moving to the U.S. from Nigeria in 2016, I taught myself how to use computers through coding. 
-I love cooking, working out, coding, and engaging in philosophical discussions with friends.
-I work with schools throughout Philadelphia to teach Scratch and Python through the UPenn-Fife CS Academy.
+    `\nI'm Tomi Adenekan, a college sophomore interested in coding, data analytics, and philosophy.
+Ever since moving to the U.S. from Nigeria in 2016, I taught myself how to use computers through small hands on projects. 
+I love cooking, working out, coding, watching anime, and talking about philosophy with friends.
+I work with schools throughout Philadelphia to teach Scratch and Python through the UPenn-Fife CS Academy, and I tutor math through Penn's Weingarten Center.
 
-I'm currently working towards a BSE in Computer Science and a minor in Philosophy at the University of Pennsylvania.`);
-
-
-// In Projects Directory
-let contact = new Directory("Contact");
-contact.addContent(contactInfo);
-contact.addContent(resume);
-
-let about = new Directory("About");
-about.addContent(whoiam);
-
-
-let projects = new Directory("Projects");
-projects.addContent(tetris1200);
-projects.addContent(designs);
-projects.addContent(klarg);
-
-let datasci = new Directory("DataScience");
-datasci.addContent(kmeans);
-datasci.addContent(twoDlinreg);
-projects.addContent(datasci);
-
-// Create the home directory to add stuff
-let rootDir = new Directory("root");
-rootDir.addContent("About");
-rootDir.addContent("Contact");
-rootDir.addContent("Projects");
+I'm currently working towards a BSE in Computer Science and a minor in Philosophy at the University of Pennsylvania (might even tack on a masters in data science too).`);
 
 //let cwd = siteStructure.home;
 // One invariant is that cwdString is an absolute path
@@ -369,3 +347,356 @@ function openFiles(input) {
     }
 }
 term.set_prompt(`[[;${colors.green};]tomster@localhost] [[b;${colors.cyan};]${cwd.folderName}] `);
+
+/**
+ * Tools that can allow us to emulate the Linux file system.
+ */
+
+export class FileSystem {
+    /**
+     * Create a new filesystem with a root directory. This doesn't support some more advanced features like regex. 
+     * @param {Function} onError a function to handle errors, it should take in one argument, the error message to handle.
+     */
+    constructor(onError) {
+        this.root = new Directory("~", null);
+        this.cwd = this.root;
+        this.errorFunc = onError;
+    }
+
+    /**
+     * Returns a Directory object from the path
+     * @param {String} path the path to handle 
+     * @param {String} funcName name of the function for error calls
+     * @returns a Directory object
+     */
+    #getDirectoryFromPath(path, funcName) {
+        let tempCwd = this.cwd;
+        if (path.startsWith("/")) {
+            tempCwd = this.root;
+        }
+
+        // Start tracking back
+        let pathSet = new Set(path);
+        // Then we know that this path consists dots only
+        // So start backtracking
+        if (path.startsWith(".") && (pathSet.size == 1)) {
+            for (let i = 1; i < folder.length; i++) {
+                if (this.tempCwd != this.root) {
+                    tempCwd = this.tempCwd.getParentDir();
+                }
+            }
+        } else {
+            // Otherwise try to find the directory
+            if (!this.tempCwd.contains(folder)) {
+                this.errorFunc(`${funcName}: no such file or directory: ${path}`);
+                return; // exit da program early
+            }
+            tempCwd = this.tempCwd.getDir(folder);
+        }
+        
+        return tempCwd;
+    }
+
+    /**
+     * NOTE: it's pretty important that the path leads to an actual file.
+     * @param {*} path the path to the file we're talking about
+     * @returns an object with a `path` key, a string representing the actual path,
+     * and the `file` key, which is the actual filename.
+     */
+    #splitFileNameFromPath(path) {
+        let splitPath = path.split("/");
+        let fileName = splitPath.pop();
+        let actualPath = splitPath.join("/");
+
+        return {
+            "path": actualPath,
+            "file": fileName
+        };
+    }
+
+    /**
+     * Adds a list of all those directories
+     * @param {Array} directories all the new directories we need to create
+     */
+    mkdir(directories) {
+        for (const item in directories) {
+            // If it exists then do something about it, otherwise, add it
+            let tempCwd = this.#getDirectoryFromPath(item)
+            if (tempCwd.contains(item)) {
+                this.errorFunc(`mkdir: ${item}: File exists`);
+                return;
+            }
+
+
+            newDir = new Directory(item, tempCwd);
+            tempCwd.add(newDir);
+        }
+    }
+
+    /**
+     * Act's akin to rm -rfv items
+     * @param {Array} items the items to remove  
+     */
+    rm(items) {
+        for (const item in items) {
+            if (!this.cwd.contains(item)) {
+                this.errorFunc(`rm: ${item}: No such file or directory`);
+                return;
+            }
+
+            this.cwd.remove(item);
+        }
+    }
+
+    /**
+     * Change the current working directory to whatever path is
+     * @param {String} path the path of the file
+     */
+    cd(path) {
+        let dirs = path.split("/");
+        let newCwd = this.#getDirectoryFromPath(path);
+        this.cwd = newCwd;
+    }
+
+    /**
+     * @returns a string representation of the current working directory
+     */
+    pwd() {
+        let filePath = "";
+        let tempCwd = this.cwd;
+
+        // Backtrack to add it all back up
+        while (tempCwd != this.root) {
+            filePath += "/" + this.tempCwd.getName();
+            tempCwd = tempCwd.parent();
+        }
+
+        return filePath;
+    }
+
+    /**
+     * Creates an empty file if the file does not exist
+     * @param {Array} filenames a list of all the files to add
+     */
+    touch(filenames) {
+        for (const file in filenames) {
+            let info = this.#splitFileNameFromPath(file);
+            let tempCwd = this.#getDirectoryFromPath(info["path"]);
+            if (!tempCwd.contains(info["file"])) {
+                tempCwd.add(info["file"], type="file");
+            }
+        }
+    }
+
+
+    /**
+     * Opens a file using a predetermined method
+     * @param {String} filename the name of the file we want to open
+     */
+    open(filename) {
+        let info = this.#splitFileNameFromPath(filename);
+        let tempCwd = this.#getDirectoryFromPath(info["path"]);
+        if (!tempCwd.contains(info["file"])) {
+            this.errorFunc(`open: ${filename}: file does not exist`);
+            return;
+        }
+
+        tempCwd.openFile(filename);
+    }
+
+    /**
+     * The creates a new file within the cwd
+     * @param {*} filename name of the file
+     * @param {*} content the content of the file
+     * @param {*} opener the method to open the file
+     */
+    createFile(filename, content, opener) {
+        let info = this.#splitFileNameFromPath(filename);
+        let tempCwd = this.#getDirectoryFromPath(info["path"]);
+        tempCwd.createFile(info["file"], content, opener);
+    }
+}
+
+
+export class File {
+    /**
+     * Constructs a new File node, I might need to make this more robust later, to handle links and stuff
+     * @param {String} fname the name of the file
+     * @param {*} content the content of the file
+     * @param {Directory} parent_dir the name of the parent directory
+     */
+    constructor(fname, content, parent_dir) {
+        this.fname = fname;
+        this.content = content;
+        this.parent = parent_dir;
+        this.opener = null;
+    }
+
+    /**
+     * Constructs a new File node, I might need to make this more robust later, to handle links and stuff
+     * @param {String} fname the name of the file
+     * @param {*} content the content of the file
+     * @param {Directory} parent_dir the name of the parent directory
+     * @param {Function} opener a function to open the file, it must take in a single argument, the content
+     */
+    constructor(fname, content, parent_dir, opener) {
+        this.fname = fname;
+        this.content = content;
+        this.parent = parent_dir;
+        this.opener = opener;
+    }
+
+    /**
+     * @returns the content of this file
+     */
+    getContent() {
+        return this.content;
+    }
+
+    /**
+     * @returns the parent directory of this file
+     */
+    getParentDir() {
+        return this.parent;
+    }
+
+    /**
+     * @returns the name of this file
+     */
+    getName() {
+        return this.getName;
+    }
+
+    /**
+     * Opens the file using the function specified in opener
+     */
+    open() {
+        if (this.opener != null) {
+            this.opener(this.content);
+        }
+    }
+
+    /**
+     * Sets the new opening function
+     * @param {Function} newOpener the new function to open the contents of the file
+     */
+    setOpener(newOpener) {
+        this.opener = newOpener;
+    } 
+
+    /**
+     * Opens the file using a custom opener
+     * @param {Function} customOpener the method to open the file
+     */
+    customOpen(customOpener) {
+        customOpener(this.content);
+    }
+}
+
+import { File } from "./File";
+
+export class Directory {
+    /**
+     * Constructs a new, empty Directory node.
+     * @param {String} dirname the name of the directory
+     * @param {Directory} parent_dir the parent directory
+     */
+    constructor(dirname, parent_dir) {
+        this.dirname = dirname;
+        this.parent = parent_dir;
+        this.contents = {};
+    }
+
+    /**
+     * @returns the contents of this directory
+     */
+    getContents() {
+        return Object.values(this.contents);
+    }
+
+    /**
+     * Adds a Directory or File to this directory
+     * @param {String | File | Directory} content the object we want to add to this directory, 
+     * @param {String} type the type of content to add, "dir" for directory, and "file" for file
+     * if it's a string, then it creates an empty file with the specified name
+     */
+    add(item, type="dir") {
+        if ((item instanceof Directory) || (item instanceof File)) {
+            this.contents[item.getName()] = item;
+        } else {
+            // Otherwise initialize an empty file
+            if (type == "dir") {
+                this.contents[item] = new Directory(item, this);
+            } else {
+                this.contents[item] = new File(item, "", this);
+            }
+        }
+    }
+    /**
+     * Removes an item, Directory or File, from this Directory
+     * @param {String | File | Directory} item the item we want to remove
+     */
+    remove(item) {
+        if ((item instanceof Directory) || (item instanceof File)) {
+            delete this.contents[item.getName()]
+        } else {
+            // Otherwise it must be a string
+            delete this.contents[item];
+        }
+    }
+
+    /**
+     * @returns the parent directory as a Directory object
+     */
+    getParentDir() {
+        return this.parent;
+    }
+
+    /**
+     * @returns the name of this directory
+     */
+    getName() {
+        return this.dirname;
+    }
+
+    /**
+     * Checks if an item, file or directory is in this directory
+     * @param {String | Directory | File} name the name of the Directory or File. If the type of name is Directory/File, then we check 
+     * if it's in the directory content. it also works for just file/folder names too.
+     * @returns true if the item is in the directory, false otherwise
+     */
+    contains(name) {
+        if ((name instanceof Directory) || (name instanceof File)) {
+            return (name.getName() in this.contents);
+        }
+        return (name in this.contents);
+    }
+
+    /**
+     * Gets the `Directory` object associated with `directory_name`
+     * @param {String} directory_name the name of the directory
+     * @returns a Directory object 
+     */
+    getDir(directory_name) {
+        return this.contents[directory_name]
+    }
+
+    /**
+     * Opens the file if it's in this directory
+     * @param {String} filename the name of the file to open 
+     */
+    openFile(filename) {
+        this.contents[filename].open()
+    }
+
+    /**
+     * Creates a new file with a custom opening method
+     * @param {*} filename the name of the file
+     * @param {*} content the content of the file
+     * @param {*} opener method to open the file
+     */
+    createFile(filename, content, opener) {
+        this.contents[filename] = new File(filename, content, this, opener);
+    } 
+
+}

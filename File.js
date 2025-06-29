@@ -1,4 +1,3 @@
-import { Directory } from "./directory";
 
 export class File {
     /**
@@ -71,6 +70,6 @@ export class File {
      * @param {Function} customOpener the method to open the file
      */
     customOpen(customOpener) {
-        this.customOpener(this.content);
+        customOpener(this.content);
     }
 }
