@@ -1,3 +1,31 @@
+/**
+ * script.js
+ *  Rework of the fake terminal to be more dynamic.
+ *  
+ * As a little aside, across all .js files, 
+ * 0 is returned when a function executes successfully,
+ * otherwise, -1 is returned.
+ * 
+ * This is the Project Structure:
+ * 
+ * Root:
+ * |- Projects
+ *    |- Tetris1200.java
+ *    |- designs.sketch
+ *    |- klarg.py
+ *    |- DataScience
+ *        |- 2dlinreg.py
+ *        |- kmeans.py
+ * |- Contact
+ *    |- contactinfo.txt
+ *    |- resume.pdf
+ * |- About
+ *    |- whoiam.txt
+ */
+
+import { SingleFile } from "./singleFile";
+import { Directory } from "./directory";
+
 // Follows the Dracula color scheme
 const colors = {
     red: "#ff5555",
@@ -7,37 +35,130 @@ const colors = {
     purple: "#BD93F9"
 };
 
-// Perhaps not needed
-function foldersToString(arr) {
-    let newString = "";
-    arr.forEach((element) => newString += `${element}    `);
-    return newString.trim();
+// In Contact Directory
+let contactInfo = new SingleFile("contactinfo.txt", 
+    `\nEmail: tominekan12@gmail.com
+Github: https://github.com/tominekan
+Linkedin: https://www.linkedin.com/in/oluwatomisin-adenekan-50b207247/`);
+// Set the custom opener for the resume
+let resume = new SingleFile("resume.pdf", "resume.pdf");
+resume.setOpener((item) => window.open(item));
+
+// In Projects Directory
+let tetris1200 = new SingleFile("Tetris1200.java", 
+    `\n[[bu;${colors.pink};] TETRIS1200:] 
+[[i;${colors.purple};]INFO:]: This is a Tetris game built with Java and Swing UI. Tetris1200 features a retro UI, multiple game modes, game saves, and more.`);
+
+let designs = new SingleFile("designs.sketch", 
+    `\n[[bu;${colors.pink};]PERSONAL DESIGNS:]
+These are a collection of .sketch files of websites I've made. You can check them out on my github. https://github.com/tominekan`);
+
+let klarg = new SingleFile("klarg.py", 
+    `\n[[bu;${colors.pink};]Kommand Line ARgument Parser:]
+[[i;${colors.purple};]INFO:] This is a python library (with an incredibly goofy name).
+It's is an incredibly easy to use command line argument parsing script using zero external libraries and a less-than 25kB file size.`);
+
+// Within Projects, we have DataScience Sub Directory
+let twoDlinreg = new SingleFile("2dlinreg.py", 
+    `\n[[bu;${colors.pink};]2D LINEAR REGRESSION:]
+[[i;${colors.purple};]INFO:] This is a command line statistical analysis application. It implements all algorithms by hand (they aren't performance optimized tho).
+It calculates and plots various statistics for a given dataset.`);
+
+let kmeans = new SingleFile("kmeans.py", 
+    `\n[[bu;${colors.pink};]K-MEANS CLASSIFICATION ALGORITHM:]
+    [[i;${colors.purple};]INFO:] This is an hand-implementation of a machine learning algorithm.
+    It takes in estimated centroids and applies the K-Means algorithms to return new centroids.`)
+
+// In About Directory
+let whoiam = new SingleFile("whoiam.txt", 
+    `\nI'm Tomi Adenekan, a college freshman interested in coding, data analytics, and philosophy.
+Ever since moving to the U.S. from Nigeria in 2016, I taught myself how to use computers through coding. 
+I love cooking, working out, coding, and engaging in philosophical discussions with friends.
+I work with schools throughout Philadelphia to teach Scratch and Python through the UPenn-Fife CS Academy.
+
+I'm currently working towards a BSE in Computer Science and a minor in Philosophy at the University of Pennsylvania.`);
+
+
+// In Projects Directory
+let contact = new Directory("Contact");
+contact.addContent(contactInfo);
+contact.addContent(resume);
+
+let about = new Directory("About");
+about.addContent(whoiam);
+
+
+let projects = new Directory("Projects");
+projects.addContent(tetris1200);
+projects.addContent(designs);
+projects.addContent(klarg);
+
+let datasci = new Directory("DataScience");
+datasci.addContent(kmeans);
+datasci.addContent(twoDlinreg);
+projects.addContent(datasci);
+
+// Create the home directory to add stuff
+let rootDir = new Directory("root");
+rootDir.addContent("About");
+rootDir.addContent("Contact");
+rootDir.addContent("Projects");
+
+//let cwd = siteStructure.home;
+// One invariant is that cwdString is an absolute path
+let cwdString = "root";
+let cwd = rootDir;
+
+/**
+ * This method works by starting at a specific directory, looping through
+ * all the names in the pathTokens file recursively getting the directory.
+ * @param { Directory } startCwd the starting directory (must be a Directory class)
+ * @param { String[] } pathTokens the new directory split by "/"
+ * @returns 0 if we successfully found and selected the current directory, -1 otherwise
+ */
+function getDir(startCwd, pathTokens) {
+    let currentDir = startCwd;
+    for (let index = 0; index < pathTokens.length; index++) {
+        // Check if the directory even exists
+        if (currentDir.inDirectory(pathTokens[index])) {
+            currentDir = currentDir.getDirectory(pathTokens[index]);
+
+            // This means that the item is a file not a directory
+            // return -1, meaning that the directory we want to change to
+            if (currentDir === null) {
+                return -1;
+            }
+            return 0; 
+        } else {
+            // Else if the directory doesn't exist at all
+            return -1;
+        }
+    }
 }
 
-let siteStructure = {
-    home: {
-        name: "~",
-        folderName: "~",
-        content: ["About", "Projects", "Contact"],
-    },
-    about: {
-        name: "about",
-        folderName: "~/About",
-        content: ["whoiam.txt", "education.txt"],
-    },
-    projects: {
-        name: "projects",
-        folderName: "~/Projects",
-        content: ["2dlinreg.txt", "kmeans.txt", "designs.txt", "klarg.txt"],
-    },
-    contact: {
-        name: "contact",
-        folderName: "~/Contact",
-        content: ["contactinfo.txt", "resume.pdf"],
-    }
-};
+function updateCwd(newDir) {
+    let tokens = newDir.split("/");
 
-let cwd = siteStructure.home;
+    // If we are using absolute paths e.g "/home"
+    if (newDir[0] === '/') {
+        return getDir(rootDir, tokens);
+    }
+
+    // If we call something like ./whatever
+    if (tokens[0] === ".") {
+        // Then the starting directory is the current directory
+        return getDir(cwd, tokens.slice(1));
+    }
+
+    // If we have .. in any of our files ".." is the backwards direction.
+    if (tokens.indexOf("..") != 1) {
+        
+        if (cwd === "root") {
+
+        }
+    }
+}
+
 
 // Actual Terminal
 let term = $('body').terminal({

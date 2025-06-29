@@ -37,4 +37,5 @@ class FakeSH extends Directory {
             this.homeDir.addContent(otherDir)
         }
     }
+
 }

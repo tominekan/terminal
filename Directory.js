@@ -1,90 +1,87 @@
-class Directory {
+export class Directory {
     /**
-     * Construct a new, empty Directory
-     * @param {*} directoryName 
+     * Constructs a new, empty Directory node.
+     * @param {String} dirname the name of the directory
+     * @param {Directory} parent_dir the parent directory
      */
-    constructor(directoryName) {
-        this.name = directoryName;
-        this.contents = [];
-    }
-    
-    /**
-     * Removes a single file from the directory
-     * if it doesn't exist, then we do nothing
-     * @param {*} singleItem 
-     */
-    removeItem(singleItem) {
-        let index = this.contents.indexOf(singleItem);
-        if (index != -1) {
-            this.contents.splice(index, 1);
-        }
-
+    constructor(dirname, parent_dir) {
+        this.dirname = dirname;
+        this.parent = parent_dir;
+        this.contents = {};
     }
 
     /**
-     * Adds either a single file or a sub-directory
-     * to a directory
-     * @param {Directory, SingleFile} content 
-     */
-    addContent(content) {
-        this.contents.push(content);
-    }
-
-    /**
-     * This method returns a list containing all the items in the directory
-     * It should return a shallow copy of this item for security, but i got lazy lol
-     * @returns A list containing all items in the directory
+     * @returns the contents of this directory
      */
     getContents() {
-        return this.contents;
+        return Object.values(this.contents);
     }
 
     /**
-     * Checks if the other item is a directory
-     * @param {*} otherContent can be any object techincally
-     * One invariant of the file system is that every item must either be a SingleFile or Directory 
-     * @returns boolean  
+     * Adds a Directory or File to this directory
+     * @param {String | File | Directory} content the object we want to add to this directory, 
+     * @param {String} type the type of content to add, "dir" for directory, and "file" for file
+     * if it's a string, then it creates an empty file with the specified name
      */
-    isDirectory(otherContent) {
-        return (otherContent instanceof Directory);
+    add(item, type="dir") {
+        if ((item instanceof Directory) || (item instanceof File)) {
+            this.contents[item.getName()] = item;
+        } else {
+            // Otherwise initialize an empty file
+            if (type == "dir") {
+                this.contents[item] = new Directory(item, this);
+            } else {
+                this.contents[item] = new File(item, "", this);
+            }
+        }
+    }
+    /**
+     * Removes an item, Directory or File, from this Directory
+     * @param {String | File | Directory} item the item we want to remove
+     */
+    remove(item) {
+        if ((item instanceof Directory) || (item instanceof File)) {
+            delete this.contents[item.getName()]
+        } else {
+            // Otherwise it must be a string
+            delete this.contents[item];
+        }
     }
 
     /**
-     * @returns the name of the directory
+     * @returns the parent directory as a Directory object
+     */
+    getParentDir() {
+        return this.parent;
+    }
+
+    /**
+     * @returns the name of this directory
      */
     getName() {
-        return this.name;
+        return this.dirname;
     }
 
     /**
-     * Opens up a specific file that matches the name of the specific file
-     * we are targeting, returns -1 if the file does not exist. Returns true otherwise
-     * @param {String} otherFile 
+     * Checks if an item, file or directory is in this directory
+     * @param {String | Directory | File} name the name of the Directory or File. If the type of name is Directory/File, then we check 
+     * if it's in the directory content. it also works for just file/folder names too.
+     * @returns true if the item is in the directory, false otherwise
      */
-    openFile(otherFile) {
-        for (let index = 0; index < this.contents.length; index++) {
-            // If the current index is a single file, compare the file names
-            if (this.contents[index] instanceof SingleFile) {
-                if (this.contents[index].getName() === otherFile) {
-                    this.contents[index].open();
-                }
-            }
+    contains(name) {
+        if ((name instanceof Directory) || (name instanceof File)) {
+            return (name.getName() in this.contents);
         }
-        return -1;
+        return (name in this.contents);
     }
 
     /**
-     * Checks if the name of a file (or directory) exists within a given directory
-     * @returns true if the item is inside the directory, false otherwise.
+     * Gets the `Directory` object associated with `directory_name`
+     * @param {String} directory_name the name of the directory
+     * @returns a Directory object 
      */
-    inDirectory(otherItem) {
-        for (let index = 0; index < this.contents.length; index++) {
-            if (this.contents[index].getName() === otherItem) {
-                return true;
-            }
-        }
-
-        return false;
+    getDir(directory_name) {
+        return this.contents[directory_name]
     }
 
 }
