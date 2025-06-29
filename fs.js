@@ -16,19 +16,72 @@ export class FileSystem {
     }
 
     /**
+     * Returns a Directory object from the path
+     * @param {String} path the path to handle 
+     * @param {String} funcName name of the function for error calls
+     * @returns a Directory object
+     */
+    #getDirectoryFromPath(path, funcName) {
+        let tempCwd = this.cwd;
+        if (path.startsWith("/")) {
+            tempCwd = this.root;
+        }
+
+        // Start tracking back
+        let pathSet = new Set(path);
+        // Then we know that this path consists dots only
+        // So start backtracking
+        if (path.startsWith(".") && (pathSet.size == 1)) {
+            for (let i = 1; i < folder.length; i++) {
+                if (this.tempCwd != this.root) {
+                    tempCwd = this.tempCwd.getParentDir();
+                }
+            }
+        } else {
+            // Otherwise try to find the directory
+            if (!this.tempCwd.contains(folder)) {
+                this.errorFunc(`${funcName}: no such file or directory: ${path}`);
+                return; // exit da program early
+            }
+            tempCwd = this.tempCwd.getDir(folder);
+        }
+        
+        return tempCwd;
+    }
+
+    /**
+     * NOTE: it's pretty important that the path leads to an actual file.
+     * @param {*} path the path to the file we're talking about
+     * @returns an object with a `path` key, a string representing the actual path,
+     * and the `file` key, which is the actual filename.
+     */
+    #splitFileNameFromPath(path) {
+        let splitPath = path.split("/");
+        let fileName = splitPath.pop();
+        let actualPath = splitPath.join("/");
+
+        return {
+            "path": actualPath,
+            "file": fileName
+        };
+    }
+
+    /**
      * Adds a list of all those directories
      * @param {Array} directories all the new directories we need to create
      */
     mkdir(directories) {
         for (const item in directories) {
             // If it exists then do something about it, otherwise, add it
-            if (this.cwd.contains(item)) {
+            let tempCwd = this.#getDirectoryFromPath(item)
+            if (tempCwd.contains(item)) {
                 this.errorFunc(`mkdir: ${item}: File exists`);
+                return;
             }
 
 
-            newDir = new Directory(item, this.cwd);
-            this.cwd.add(newDir);
+            newDir = new Directory(item, tempCwd);
+            tempCwd.add(newDir);
         }
     }
 
@@ -40,6 +93,7 @@ export class FileSystem {
         for (const item in items) {
             if (!this.cwd.contains(item)) {
                 this.errorFunc(`rm: ${item}: No such file or directory`);
+                return;
             }
 
             this.cwd.remove(item);
@@ -52,42 +106,24 @@ export class FileSystem {
      */
     cd(path) {
         let dirs = path.split("/");
-        let newCwd = this.cwd;
-
-        // If the path starts with /, then start looking from the root directory
-        if (path.startsWith("/")) {
-            newCwd = this.root;
-        }
-
-        // Start tracking back
-        for (const folder in dirs) {
-            let folderSet = new Set(folder);
-            // Then we know that this path consists dots only
-            // So start backtracking
-            if (folder.startsWith(".") && (folderSet.size == 1)) {
-                for (let i = 1; i < folder.length; i++) {
-                    if (this.newCwd != this.root) {
-                        newCwd = this.newCwd.getParentDir();
-                    }
-                }
-            } else {
-                // Otherwise try to find the directory
-                if (!this.newCwd.contains(folder)) {
-                    this.errorFunc(`cd: no such file or directory: ${path}`);
-                    return; // exit da program early
-                }
-                newCwd = this.newCwd.getDir(folder);
-            }
-        }
-        
+        let newCwd = this.#getDirectoryFromPath(path);
         this.cwd = newCwd;
     }
 
     /**
-     * @returns the current working diectory
+     * @returns a string representation of the current working directory
      */
     pwd() {
-        return this.cwd;
+        let filePath = "";
+        let tempCwd = this.cwd;
+
+        // Backtrack to add it all back up
+        while (tempCwd != this.root) {
+            filePath += "/" + this.tempCwd.getName();
+            tempCwd = tempCwd.parent();
+        }
+
+        return filePath;
     }
 
     /**
@@ -96,11 +132,39 @@ export class FileSystem {
      */
     touch(filenames) {
         for (const file in filenames) {
-            if (!this.cwd.contains(file)) {
-                this.cwd.add(file, type="file");
+            let info = this.#splitFileNameFromPath(file);
+            let tempCwd = this.#getDirectoryFromPath(info["path"]);
+            if (!tempCwd.contains(info["file"])) {
+                tempCwd.add(info["file"], type="file");
             }
         }
     }
 
 
+    /**
+     * Opens a file using a predetermined method
+     * @param {String} filename the name of the file we want to open
+     */
+    open(filename) {
+        let info = this.#splitFileNameFromPath(filename);
+        let tempCwd = this.#getDirectoryFromPath(info["path"]);
+        if (!tempCwd.contains(info["file"])) {
+            this.errorFunc(`open: ${filename}: file does not exist`);
+            return;
+        }
+
+        tempCwd.openFile(filename);
+    }
+
+    /**
+     * The creates a new file within the cwd
+     * @param {*} filename name of the file
+     * @param {*} content the content of the file
+     * @param {*} opener the method to open the file
+     */
+    createFile(filename, content, opener) {
+        let info = this.#splitFileNameFromPath(filename);
+        let tempCwd = this.#getDirectoryFromPath(info["path"]);
+        tempCwd.createFile(info["file"], content, opener);
+    }
 }

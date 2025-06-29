@@ -1,3 +1,5 @@
+import { File } from "./File";
+
 export class Directory {
     /**
      * Constructs a new, empty Directory node.
@@ -83,5 +85,23 @@ export class Directory {
     getDir(directory_name) {
         return this.contents[directory_name]
     }
+
+    /**
+     * Opens the file if it's in this directory
+     * @param {String} filename the name of the file to open 
+     */
+    openFile(filename) {
+        this.contents[filename].open()
+    }
+
+    /**
+     * Creates a new file with a custom opening method
+     * @param {*} filename the name of the file
+     * @param {*} content the content of the file
+     * @param {*} opener method to open the file
+     */
+    createFile(filename, content, opener) {
+        this.contents[filename] = new File(filename, content, this, opener);
+    } 
 
 }

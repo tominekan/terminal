@@ -23,8 +23,9 @@
  *    |- whoiam.txt
  */
 
-import { SingleFile } from "./singleFile";
+import { File } from "./File";
 import { Directory } from "./directory";
+import { FileSystem } from "./fs"
 
 // Follows the Dracula color scheme
 const colors = {
@@ -35,6 +36,7 @@ const colors = {
     purple: "#BD93F9"
 };
 
+let openInNewWindow = (item) => window.open(item);
 // In Contact Directory
 let contactInfo = new SingleFile("contactinfo.txt", 
     `\nEmail: tominekan12@gmail.com
@@ -42,7 +44,7 @@ Github: https://github.com/tominekan
 Linkedin: https://www.linkedin.com/in/oluwatomisin-adenekan-50b207247/`);
 // Set the custom opener for the resume
 let resume = new SingleFile("resume.pdf", "resume.pdf");
-resume.setOpener((item) => window.open(item));
+resume.setOpener(openInNewWindow);
 
 // In Projects Directory
 let tetris1200 = new SingleFile("Tetris1200.java", 
