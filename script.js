@@ -50,7 +50,7 @@ class FileSystem {
      */
     #getFromPath(path, funcName) {
         let tempCwd = this.cwd;
-        let pathSplit = path.split("/")
+        let pathSplit = path.split("/");
         if (path.startsWith("/")) {
             tempCwd = this.root;
         }
