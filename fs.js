@@ -169,8 +169,6 @@ export class FileSystem {
     }
 }
 
-import { File } from "./File";
-
 export class Directory {
     /**
      * Constructs a new, empty Directory node.
