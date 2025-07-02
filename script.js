@@ -238,7 +238,7 @@ class FileSystem {
 
             let tempCwd = this.#getFromPath(info["parent"], "touch");
             if (!tempCwd.contains(info["child"])) {
-                tempCwd.add(info["child"], type="file");
+                tempCwd.add(info["child"], "file");
             }
         }
     }
