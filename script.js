@@ -28,18 +28,37 @@ const colors = {
 };
 
 /**
- * Tools that can allow us to emulate the Linux file system.
+ * @param {String} text the text we want to change
+ * @param {String} color the color we want to change it to
+ * @returns the text changed to a specific color 
  */
+function toColor(text, color) {
+    return `[[b;${color};]${text}]`
+}
 
+
+/**
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * FileSystem Class
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
 class FileSystem {
     /**
      * Create a new filesystem with a root directory. This doesn't support some more advanced features like regex. 
      * @param {Function} onError a function to handle errors, it should take in one argument, the error message to handle.
      */
-    constructor(onError) {
+    constructor(onError=null) {
         this.root = new Directory("~", null);
         this.cwd = this.root;
         this.errorFunc = onError;
+    }
+
+    /**
+     * Sets the function to handle errors
+     * @param {Function} errFunc a function that must take in a string argument
+     */
+    setErrorFunc(errFunc) {
+        this.errorFunc = errFunc;
     }
 
     /**
@@ -49,50 +68,56 @@ class FileSystem {
      * @returns the directroy or File from path
      */
     #getFromPath(path, funcName) {
+        // If the path is empty, then we know that we're referring to the root directory
+        if ((path === "") || (path === "~")) {
+            return this.root;
+        }
+
         let tempCwd = this.cwd;
-        let pathSplit = path.split("/");
+        let pathSplit = path.trim().split("/");
+        // Remove all empty elements from the list
+        pathSplit = pathSplit.filter((elem) => elem !== "")
         if (path.startsWith("/")) {
             tempCwd = this.root;
         }
 
         // So start backtracking
-        for (const dirname in pathSplit) {
+        for (const dirname of pathSplit) {
             // Start tracking back
             let pathSet = new Set(dirname);
             // Then we know that this path consists dots only
-            if (dirname.startsWith(".") && (pathSet.size == 1)) {
-                for (let i = 1; i < folder.length; i++) {
-                    if (this.tempCwd != this.root) {
-                        tempCwd = this.tempCwd.getParentDir();
+            if (dirname.startsWith(".") && (pathSet.size === 1)) {
+                for (let i = 1; i < dirname.length; i++) {
+                    if (tempCwd != this.root) {
+                        tempCwd = tempCwd.getParentDir();
                     }
                 }
             } else {
                 // Otherwise try to find the directory
-                if (!this.tempCwd.contains(dirname)) {
+                if (!tempCwd.contains(dirname) && (dirname !== "")) {
                     this.errorFunc(`${funcName}: no such file or directory: ${path}`);
-                    return; // exit da program early
+                    return -1; // exit da program early
                 }
-                tempCwd = this.tempCwd.get(dirname);
+                tempCwd = tempCwd.get(dirname);
             }
         }
         
         return tempCwd;
     }
 
-    /**
-     * NOTE: it's pretty important that the path leads to an actual file.
-     * @param {*} path the path to the file we're talking about
-     * @returns an object with a `path` key, a string representing the actual path,
-     * and the `file` key, which is the actual filename.
+    /**.
+     * @param {*} path the path to the file/Directory we're talking about
+     * @returns an object with a `parent` key, a string representing the path to the parent,
+     * and the `child` key, which is the child item, File or Directory.
      */
-    #splitFileNameFromPath(path) {
+    #getParentDir(path) {
         let splitPath = path.split("/");
-        let fileName = splitPath.pop();
-        let actualPath = splitPath.join("/");
+        let item = splitPath.pop();
+        let parent = splitPath.join("/");
 
         return {
-            "path": actualPath,
-            "file": fileName
+            "parent": parent,
+            "child": item
         };
     }
 
@@ -101,17 +126,49 @@ class FileSystem {
      * @param {Array} directories all the new directories we need to create
      */
     mkdir(directories) {
-        for (const item in directories) {
-            // If it exists then do something about it, otherwise, add it
-            let tempCwd = this.#getFromPath(item)
-            if (tempCwd.contains(item)) {
-                this.errorFunc(`mkdir: ${item}: File exists`);
-                return;
+        for (const item of directories) {
+            let parentChild = {
+                "parent": this.pwd(),
+                "child": item
+            };
+            // Grab the parent folder from the specified path 
+            if (item.includes("/")) {
+                parentChild = this.#getParentDir(item);
             }
 
+            let tempCwd = this.#getFromPath(parentChild["parent"], "mkdir");
+            if (tempCwd !== -1) {
+                if (tempCwd.contains(parentChild["child"])) {
+                    this.errorFunc(`mkdir: ${item}: File exists`);
+                    return -1;
+                }
 
-            newDir = new Directory(item, tempCwd);
-            tempCwd.add(newDir);
+                if (tempCwd.type() === "file") {
+                    this.errorFunc(`mkdir: ${item}: not a directory`);
+                    return -1;
+                }
+
+                let newDir = new Directory(parentChild["child"], tempCwd);
+                tempCwd.add(newDir);
+            }
+        }
+    }
+
+    /**
+     * Displays a list of contents
+     * @param {*} directories the list of directories to view
+     * @param {*} displayFunction the function to display contents of the directory
+     * it should be able to handle both Arrays and Strings.
+     */
+    ls(directories, displayFunction) {
+        if (directories.length == 0) {
+            displayFunction(this.cwd.getContents());
+            return 0;
+        }
+        for (const item of directories) {
+            let dir = this.#getFromPath(item, "ls");
+            displayFunction(`${item}:`);
+            displayFunction(dir.getContents());
         }
     }
 
@@ -120,13 +177,11 @@ class FileSystem {
      * @param {Array} items the items to remove  
      */
     rm(items) {
-        for (const item in items) {
-            if (!this.cwd.contains(item)) {
-                this.errorFunc(`rm: ${item}: No such file or directory`);
-                return;
+        for (const item of items) {
+            let itemObject = this.#getFromPath(item, 'rm');
+            if (itemObject !== -1) {
+                itemObject.parent.remove(itemObject.getName());
             }
-
-            this.cwd.remove(item);
         }
     }
 
@@ -135,9 +190,19 @@ class FileSystem {
      * @param {String} path the path of the file
      */
     cd(path) {
-        let dirs = path.split("/");
-        let newCwd = this.#getFromPath(path);
-        this.cwd = newCwd;
+        if (path === undefined) {
+            this.cwd = this.root;
+        } else {
+            let newCwd = this.#getFromPath(path, "cd");
+            if (newCwd != -1) {
+                if (newCwd.type() === "file") {
+                    this.errorFunc(`cd: not a directory: ${item}`);
+                    return -1;
+                }
+                this.cwd = newCwd;
+            }
+
+        }
     }
 
     /**
@@ -149,8 +214,8 @@ class FileSystem {
 
         // Backtrack to add it all back up
         while (tempCwd != this.root) {
-            filePath += "/" + this.tempCwd.getName();
-            tempCwd = tempCwd.parent();
+            filePath += "/" + tempCwd.getName();
+            tempCwd = tempCwd.getParentDir();
         }
 
         return filePath;
@@ -161,55 +226,115 @@ class FileSystem {
      * @param {Array} filenames a list of all the files to add
      */
     touch(filenames) {
-        for (const file in filenames) {
-            let info = this.#splitFileNameFromPath(file);
-            let tempCwd = this.#getFromPath(info["path"]);
-            if (!tempCwd.contains(info["file"])) {
-                tempCwd.add(info["file"], type="file");
+        for (const file of filenames) {
+            let info = {
+                "parent": this.pwd(),
+                "child": file
+            };
+
+            if (file.includes("/")) {
+                info = this.#getParentDir(file);
+            }
+
+            let tempCwd = this.#getFromPath(info["parent"], "touch");
+            if (!tempCwd.contains(info["child"])) {
+                tempCwd.add(info["child"], type="file");
             }
         }
     }
 
 
     /**
-     * Opens a file using a predetermined method
+     * Opens a file using the default method for the file
      * @param {String} filename the name of the file we want to open
      */
     open(filename) {
-        let info = this.#splitFileNameFromPath(filename);
-        let tempCwd = this.#getFromPath(info["path"]);
-        if (!tempCwd.contains(info["file"])) {
-            this.errorFunc(`open: ${filename}: file does not exist`);
-            return;
+        if (filename.length === 0) {
+            this.errorFunc(`open: no arguments provided`);
+            return -1;
         }
 
-        tempCwd.openFile(info["file"]);
+        for (const file of filename) {
+            let info = {
+                "parent": this.pwd(),
+                "child": file
+            };
+
+            if (file.includes("/")) {
+                info = this.#getParentDir(file);
+            }
+            let tempCwd = this.#getFromPath(info["parent"], "open");
+            if (tempCwd != -1) {
+                if (!tempCwd.contains(info["child"]) || (tempCwd.type() === "file")) {
+                    this.errorFunc(`open: ${file}: file does not exist`);
+                    return -1;
+                }
+
+                tempCwd.openFile(info["child"]);
+            }
+        }
+
+
     }
 
-    customOpen(filename, func) {
-        let info = this.#splitFileNameFromPath(filename);
-        let tempCwd = this.#getFromPath(info["path"]);
-        if (!tempCwd.contains(info["file"])) {
-            this.errorFunc(`open: ${filename}: file does not exist`);
-            return;
+    /**
+     * Opens a file using a specified method
+     * @param {*} filename the path to the file we want to open
+     * @param {*} func the function to open the file
+     */
+    customOpen(filename, func, funcName="customOpen") {
+        if (filename.length === 0) {
+            this.errorFunc(`${funcName}: no arguments provided`);
+            return -1;
         }
 
-        tempCwd.get(info["file"]).customOpen();
+        for (const file of filename) {
+            let info = {
+                "parent": this.pwd(),
+                "child": file
+            };
+
+            if (file.includes("/")) {
+                info = this.#getParentDir(file);
+            }
+
+            let tempCwd = this.#getFromPath(info["parent"], funcName);
+            if (tempCwd != -1) {
+                if (!tempCwd.contains(info["child"]) || (tempCwd.type() === "file")) {
+                    this.errorFunc(`${funcName}: ${file}: file does not exist`);
+                    return -1;
+                }
+
+                tempCwd.get(info["child"]).customOpen(func);
+            }
+        }
+
     }
 
     /**
      * The creates a new file within the cwd
-     * @param {*} filename name of the file
+     * @param {} filename name of the file
      * @param {*} content the content of the file
      * @param {*} opener the method to open the file
      */
-    createFile(filename, content, opener) {
-        let info = this.#splitFileNameFromPath(filename);
-        let tempCwd = this.#getFromPath(info["path"]);
-        tempCwd.createFile(info["file"], content, opener);
+    createFile(filename, content, opener=null) {
+        let info = this.#getParentDir(filename);
+        let tempCwd = this.#getFromPath(info["parent"], "createFile");
+        if (tempCwd != -1) {
+            if (tempCwd.type() == "file") {
+                this.errorFunc(`createFile: ${filename}: not a directory`)
+                return -1;
+            }
+            tempCwd.createFile(info["child"], content, opener);
+        }
     }
 }
 
+/**
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * File Class
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
 
 class File {
     /**
@@ -245,7 +370,7 @@ class File {
      * @returns the name of this file
      */
     getName() {
-        return this.getName;
+        return this.fname;
     }
 
     /**
@@ -255,6 +380,13 @@ class File {
         if (this.opener != null) {
             this.opener(this.content);
         }
+    }
+
+    /**
+     * @returns the type of object this is, 
+     */
+    type() {
+        return "file";
     }
 
     /**
@@ -272,7 +404,20 @@ class File {
     customOpen(customOpener) {
         customOpener(this.content);
     }
+
+    /**
+     * @returns the name of the file
+     */
+    getContents() {
+        return this.fname;
+    }
 }
+
+/**
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * Directory Class
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
 
 class Directory {
     /**
@@ -284,6 +429,13 @@ class Directory {
         this.dirname = dirname;
         this.parent = parent_dir;
         this.contents = {};
+    }
+
+    /**
+     * @returns the type of object this is
+     */
+    type() {
+        return "directory";
     }
 
     /**
@@ -304,7 +456,7 @@ class Directory {
             this.contents[item.getName()] = item;
         } else {
             // Otherwise initialize an empty file
-            if (type == "dir") {
+            if (type === "dir") {
                 this.contents[item] = new Directory(item, this);
             } else {
                 this.contents[item] = new File(item, "", this);
@@ -381,62 +533,31 @@ class Directory {
 }
 
 
-let fs = new FileSystem();
-fs.mkdir(["Contact", "About", "Projects"]);
+/**
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * Actual Terminal
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+
 let openInNewWindow = (item) => window.open(item);
-// In Contact Directory
-let contactInfo = new SingleFile("contactinfo.txt", 
-    `\nEmail: tominekan12@gmail.com
-Github: https://github.com/tominekan
-Linkedin: https://www.linkedin.com/in/oluwatomisin-adenekan-50b207247/`);
-// Set the custom opener for the resume
-let resume = new SingleFile("resume.pdf", "resume.pdf");
-resume.setOpener(openInNewWindow);
 
 // In Projects Directory
-fs.mkdir("Projects");
-fs.mkdir("About");
-fs.mkdir("Contact");
-
-fs.createFile(
-    "Projects/Tetris1200.java",
-    `\n[[bu;${colors.pink};] TETRIS1200:] 
-[[i;${colors.purple};]INFO:]: This is a Tetris game built with Java and Swing UI. Tetris1200 features a retro UI, multiple game modes, game saves, and more.`,
-    null
-);
-
-fs.createFile(
-    "Projects/designs.sketch",
-     `\n[[bu;${colors.pink};]PERSONAL DESIGNS:]
-These are a collection of .sketch files of websites I've made. You can check them out on my github. https://github.com/tominekan`,
-    null
-);
-
-fs.createFile(
-    "Projects/klarg.py",
-    `\n[[bu;${colors.pink};]Kommand Line ARgument Parser:]
-[[i;${colors.purple};]INFO:] This is a python library (with an incredibly goofy name).
-It's is an incredibly easy to use command line argument parsing script using zero external libraries and a less-than 25kB file size.`,
-    null
-)
-
-fs.createFile(
-    "Projects/musingsv2.py",
-    `\n[[bu;${colors.pink};]Musings, my blog:]
-[[i;${colors.purple};]INFO:] This is a blog I designed in Lunacy and developed with Django and Bootstrap.
-It's a repository for my writings about the stuff I'm currently thinking about. I have a few more ideas to make it better as time goes on.`,
-    null
-)
+let fs = new FileSystem();
+fs.mkdir(["Projects", "About", "Contact"]);
 
 
-// In About Directory
-let whoiam = new SingleFile("whoiam.txt", 
-    `\nI'm Tomi Adenekan, a college sophomore interested in coding, data analytics, and philosophy.
-Ever since moving to the U.S. from Nigeria in 2016, I taught myself how to use computers through small hands on projects. 
-I love cooking, working out, coding, watching anime, and talking about philosophy with friends.
-I work with schools throughout Philadelphia to teach Scratch and Python through the UPenn-Fife CS Academy, and I tutor math through Penn's Weingarten Center.
+function colorcodeFS(items) {
+    newItems = [];
+    for (const item of items) {
+        if (item.type() === "directory") {
+            newItems.push(toColor(item.getName(), colors.purple));
+        } else {
+            newItems.push(item.getName());
+        }
+    }
 
-I'm currently working towards a BSE in Computer Science and a minor in Philosophy at the University of Pennsylvania (might even tack on a masters in data science too).`);
+    return newItems;
+}
 
 // Actual Terminal
 let term = $('body').terminal({
@@ -448,33 +569,22 @@ let term = $('body').terminal({
         this.echo("    cd -- Changes the current directory of the terminal");
         this.echo("    cwd -- Returns the directory the user is currently in");
         this.echo("    ls -- Lists all the items in the directory");
-        this.echo("    open -- Opens the file, in this website, it has the same effect as cat\n");
+        this.echo("    open -- Opens the file, slightly different from cat\n");
+        this.echo("    mkdir -- Create a new directory");
+        this.echo("    touch -- Creates an empty file lol");
     },
 
-    ls: function(input) {
-        if (input) {
-            input = input.toLowerCase();
-        } 
-        if (input === "about") {
-            this.echo(siteStructure.about.content);
-        } else if (input === "projects") {
-            this.echo(siteStructure.projects.content);
-        } else if (input === "contact") {
-            this.echo(siteStructure.contact.content);
-        } else if (input === "~") {
-            this.echo(`[[b;${colors.cyan};]${foldersToString(siteStructure.home.content)}]`);
-        } else { // If there is no argument attached to ls
-            if (cwd === siteStructure.home) { // If the current working directory is the home directory, print it a different way
-                this.echo(`[[b;${colors.cyan};]${foldersToString(siteStructure.home.content)}]`);
+    ls: function(...input) {
+        // input = Array.from(input);
+        modified = input.map(String);
+        modified = Array.from(modified);
+        fs.ls(modified, (items) => {
+            if (typeof items === "string") {
+                this.echo(items)
             } else {
-                if (input) {
-                    term.echo("")
-                } else {
-                    this.echo(cwd.content);
-                }
+                this.echo(colorcodeFS(items))
             }
-
-        }
+        });
     },
 
     cd: function(input) { // Change directory function
@@ -486,12 +596,34 @@ let term = $('body').terminal({
         this.echo(fs.pwd());
     },
 
-    cat: function() {
-        this.echo(fs.pwd());
+    cat: function(...input) {
+        modified = input.map(String);
+        modified = Array.from(modified);
+        fs.customOpen(modified, term.echo, "cat");
     },
 
-    open: function() {
-        this.echo(fs.pwd());
+    open: function(...input) {
+        modified = input.map(String);
+        modified = Array.from(modified);
+        fs.open(modified)
+    },
+
+    mkdir: function(...input) {
+        modified = input.map(String);
+        modified = Array.from(modified);
+        fs.mkdir(modified);
+    },
+
+    rm: function(...input) {
+        modified = input.map(String);
+        modified = Array.from(modified);
+        fs.rm(modified);
+    },
+
+    touch: function(...input) {
+        modified = input.map(String);
+        modified = Array.from(modified);
+        fs.touch(modified);
     },
 
     spotify: function() {
@@ -506,4 +638,63 @@ let term = $('body').terminal({
     greetings: greetings.innerHTML,
 });
 
-term.set_prompt(`[[;${colors.green};]tomster@localhost] [[b;${colors.cyan};]${cwd.folderName}] `);
+term.set_prompt(`[[;${colors.green};]tomster@localhost] [[b;${colors.cyan};]${fs.pwd()}] `);
+fs.setErrorFunc((error) => {term.echo(toColor(error, colors.red))});
+
+fs.createFile(
+    "Contact/contactinfo.txt",
+     `\nEmail: tominekan12@gmail.com
+Github: https://github.com/tominekan
+Linkedin: https://www.linkedin.com/in/oluwatomisin-adenekan-50b207247/`,
+term.echo
+);
+
+fs.createFile(
+    "Projects/Tetris1200.java",
+    `[[bu;${colors.pink};] TETRIS1200:] 
+[[i;${colors.purple};]INFO:]: This is a Tetris game built with Java and Swing UI. Tetris1200 features a retro UI, multiple game modes, game saves, and more.`,
+term.echo
+);
+
+// Projects Directory
+fs.createFile(
+    "Projects/designs.sketch",
+     `[[bu;${colors.pink};]PERSONAL DESIGNS:]
+These are a collection of .sketch files of websites I've made. You can check them out on my github. https://github.com/tominekan`,
+term.echo
+);
+
+fs.createFile(
+    "Projects/klarg.py",
+    `[[bu;${colors.pink};]Kommand Line ARgument Parser:]
+[[i;${colors.purple};]INFO:] This is a python library (with an incredibly goofy name).
+It's is an incredibly easy to use command line argument parsing script using zero external libraries and a less-than 25kB file size.`,
+term.echo
+);
+
+fs.createFile(
+    "Projects/musingsv2.py",
+    `[[bu;${colors.pink};]Musings, my blog:]
+[[i;${colors.purple};]INFO:] This is a blog I designed in Lunacy and developed with Django and Bootstrap.
+It's a repository for my writings about the stuff I'm currently thinking about. I have a few more ideas to make it better as time goes on.`,
+term.echo
+);
+
+// About Directory
+fs.createFile(
+    "About/whoiam.txt",
+    `I'm Tomi Adenekan, a college sophomore interested in coding, data analytics, and philosophy.
+Ever since moving to the U.S. from Nigeria in 2016, I taught myself how to use computers through small hands on projects. 
+I love cooking, working out, coding, watching anime, and talking about philosophy with friends.
+I work with schools throughout Philadelphia to teach Scratch and Python through the UPenn-Fife CS Academy, and I tutor math through Penn's Weingarten Center.
+
+I'm currently working towards a BSE in Computer Science and a minor in Philosophy at the University of Pennsylvania (might even tack on a masters in data science too).`,
+term.echo
+);
+
+
+fs.createFile(
+    "About/resume.pdf",
+    "resume.pdf",
+    openInNewWindow
+);
