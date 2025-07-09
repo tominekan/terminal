@@ -680,6 +680,15 @@ It's a repository for my writings about the stuff I'm currently thinking about. 
 term.echo
 );
 
+fs.createFile(
+    "Projects/wave.cpp",
+    `[[bu;${colors.pink};]Wave:]
+[[i;${colors.purple};]INFO:]  It's a C++ based commmand line tool to edit the audio file metadata. It lets you edit the common properties like album cover art,
+artist name, song genre, and more. I created this so that I don't have to open apple music every time I want to change the metadata of songs I download, which is 
+somethign I do pretty frequently.
+`
+)
+
 // About Directory
 fs.createFile(
     "About/whoiam.txt",
