@@ -656,6 +656,14 @@ fs.createFile(
 term.echo
 );
 
+fs.createFile(
+    "Projects/pycomplete.py",
+    `[[bu;${colors.pink};] PYCOMPLETE:] 
+[[i;${colors.purple};]INFO:]: I put together some stuff I learned about Markov Chains and implemented my own Markov-chain based autocomplete library.
+I then implemented the frontend with React`,
+term.echo
+);
+
 // Projects Directory
 fs.createFile(
     "Projects/designs.sketch",
