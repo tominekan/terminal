@@ -10,12 +10,249 @@
     --crt-scanlines: 0.22;      /* how dark the scanlines are */
     --crt-vignette: 0.6;        /* how dark the screen corners get */
     --crt-roll: 0.035;          /* brightness of the band that slowly rolls down the screen */
+
+    --tldr-gap: 12px;           /* space between the tldr button and the top of the screen */
+    --tldr-height: 26px;
  }
 
  .terminal {
     font-size: 12px;
  }
 
+
+/* Always-visible tldr button in the top left, for people who don't want to type commands */
+#tldr-button {
+    position: fixed;
+    top: var(--tldr-gap);
+    left: 12px;
+    height: var(--tldr-height);
+    box-sizing: border-box;
+    z-index: 1001; /* above the CRT vignette so it stays bright, but under the scanlines so it's still on the "screen" */
+    padding: 0 10px;
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: bold;
+    color: #FF79C6;
+    background: rgba(40, 42, 54, 0.85);
+    border: 1px solid #FF79C6;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 121, 198, 0.35);
+    transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+#tldr-button:hover,
+#tldr-button:focus-visible {
+    color: #282a36;
+    background: #FF79C6;
+    box-shadow: 0 0 14px rgba(255, 121, 198, 0.7);
+    outline: none;
+}
+
+body.crt #tldr-button {
+    text-shadow: 0 0 6px rgba(255, 121, 198, 0.6);
+}
+
+
+/**
+ * TLDR window. It sits above the CRT overlays so it's crisp and easy to read
+ */
+#tldr-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 16, 22, 0.7);
+    backdrop-filter: blur(3px);
+    animation: tldr-fade 0.15s ease-out;
+}
+
+#tldr-modal[hidden] {
+    display: none;
+}
+
+#tldr-modal * {
+    box-sizing: border-box;
+}
+
+.tldr-window {
+    width: min(620px, 100%);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #f8f8f2;
+    background: #282a36;
+    border: 1px solid #FF79C6;
+    box-shadow: 0 0 30px rgba(255, 121, 198, 0.25), 0 20px 60px rgba(0, 0, 0, 0.6);
+    animation: tldr-pop 0.2s ease-out;
+}
+
+.tldr-titlebar {
+    position: sticky;
+    top: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    color: #282a36;
+    background: #FF79C6;
+    font-weight: bold;
+}
+
+.tldr-close {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.tldr-close:hover,
+.tldr-close:focus-visible {
+    color: #f8f8f2;
+    outline: none;
+}
+
+.tldr-body {
+    padding: 20px 24px 24px;
+}
+
+.tldr-body h1 {
+    margin: 0;
+    font-size: 22px;
+    color: #FF79C6;
+}
+
+.tldr-headline {
+    margin: 4px 0 0;
+    color: #8be9fd;
+}
+
+.tldr-looking {
+    margin: 12px 0 0;
+    padding: 6px 10px;
+    color: #50FA7B;
+    border-left: 3px solid #50FA7B;
+    background: rgba(80, 250, 123, 0.08);
+}
+
+.tldr-body h2 {
+    margin: 22px 0 10px;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #BD93F9;
+}
+
+.tldr-body h2::before {
+    content: "## ";
+    opacity: 0.6;
+}
+
+.tldr-highlights {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tldr-highlights li {
+    margin-bottom: 12px;
+    padding-left: 14px;
+    border-left: 2px solid #44475a;
+}
+
+.tldr-item-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+    align-items: baseline;
+}
+
+.tldr-what {
+    font-weight: bold;
+    color: #f8f8f2;
+}
+
+.tldr-role {
+    font-size: 12px;
+    color: #BD93F9;
+}
+
+.tldr-highlights p {
+    margin: 2px 0 0;
+    color: #c4c6d0;
+}
+
+.tldr-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tldr-skills li {
+    padding: 2px 8px;
+    font-size: 12px;
+    color: #8be9fd;
+    border: 1px solid #44475a;
+}
+
+.tldr-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 24px;
+}
+
+.tldr-link {
+    padding: 6px 12px;
+    font: inherit;
+    font-weight: bold;
+    color: #FF79C6;
+    background: none;
+    border: 1px solid #FF79C6;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.tldr-link.primary,
+.tldr-link:hover,
+.tldr-link:focus-visible {
+    color: #282a36;
+    background: #FF79C6;
+    outline: none;
+}
+
+.tldr-link.primary:hover,
+.tldr-link.primary:focus-visible {
+    background: #ff92d0;
+}
+
+.tldr-hint {
+    margin: 20px 0 0;
+    font-size: 12px;
+    color: #6272a4;
+}
+
+.tldr-hint code {
+    color: #50FA7B;
+}
+
+@keyframes tldr-fade {
+    from { opacity: 0; }
+}
+
+@keyframes tldr-pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
 
 /**
  * CRT effect, toggled with the `crt` command (adds/removes the `crt` class on body)
@@ -76,7 +313,9 @@ body.crt::after {
 /* No rolling or flickering for people who've asked their OS for less motion */
 @media (prefers-reduced-motion: reduce) {
     body.crt::before,
-    body.crt::after {
+    body.crt::after,
+    #tldr-modal,
+    .tldr-window {
         animation: none;
     }
 }

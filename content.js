@@ -22,7 +22,21 @@ const CONTACT = {
     website: "https://tominekan.netlify.app",
 };
 
-
+/** The quick-glance info in the tldr window (top left button, or the `tldr` command) */
+const TLDR = {
+    name: "Oluwatomisin (Tomi) Adenekan",
+    headline: "CS + Philosophy @ UPenn · Class of 2028 · GPA 3.62",
+    // e.g. "Summer 2027 SWE internships", leave it null to hide the line
+    lookingFor: null,
+    highlights: [
+        ["Microsoft", "SWE Intern · Summer 2026", "Built a full-stack AI agent (React, C# .NET) that replaced 17 legacy scripts with a natural language interface"],
+        ["Penn Center for Neuroengineering", "Research Assistant · 2025 – now", "EEG signal processing and ML for epilepsy surgery planning, co-author in Neurology Open Access"],
+        ["BabyDB", "Project", "Columnar database in C with mmap, SIMD, and ZeroMQ replication (54µs load latency)"],
+        ["Image Style Transfer", "Project", "Fine-tuned a Canny-conditioned Stable Diffusion model with LoRA"],
+        ["Teaching", "Weingarten Center + Fife-Penn CS Academy", "Tutor calculus, linear algebra, and CIS 1200, and teach CS to 75+ kids in Philly"],
+    ],
+    skills: ["Python", "C", "Java", "TypeScript", "React", "FastAPI", "C# .NET", "Pandas", "Azure", "Git"],
+};
 
 
 const CONTENT = {

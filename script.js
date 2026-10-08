@@ -538,6 +538,110 @@ async function showSpotify(range) {
     term.echo("\n" + renderTopTracks(data.top, data.range) + "\n");
 }
 
+/**
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * TLDR window, for people who'd rather not type commands. The content lives in TLDR in content.js
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+
+let tldrModal = null;
+
+/** Tiny helper to build DOM elements, e.g. el("a", {href: "..."}, "text", otherElement) */
+function el(tag, attrs={}, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+        node.setAttribute(key, value);
+    }
+    node.append(...children.filter((child) => child !== null));
+    return node;
+}
+
+/** Copies my email, or opens a mail app if the clipboard isn't available */
+async function copyEmail(button) {
+    try {
+        const timeout = new Promise((_, reject) => setTimeout(reject, 1000));
+        await Promise.race([navigator.clipboard.writeText(CONTACT.email), timeout]);
+        button.textContent = "copied!";
+        setTimeout(() => { button.textContent = "email"; }, 1500);
+    } catch {
+        window.location.href = `mailto:${CONTACT.email}`;
+    }
+}
+
+function buildTldr() {
+    const external = { target: "_blank", rel: "noopener" };
+    const closeButton = el("button", { type: "button", class: "tldr-close", "aria-label": "Close" }, "[x]");
+    const emailButton = el("button", { type: "button", class: "tldr-link" }, "email");
+
+    const modal = el("div", { id: "tldr-modal", hidden: "" },
+        el("div", { class: "tldr-window", role: "dialog", "aria-modal": "true", "aria-labelledby": "tldr-name" },
+            el("div", { class: "tldr-titlebar" }, el("span", {}, "~/tldr.txt"), closeButton),
+            el("div", { class: "tldr-body" },
+                el("h1", { id: "tldr-name" }, TLDR.name),
+                el("p", { class: "tldr-headline" }, TLDR.headline),
+                TLDR.lookingFor ? el("p", { class: "tldr-looking" }, "Looking for: ", el("strong", {}, TLDR.lookingFor)) : null,
+
+                el("h2", {}, "Highlights"),
+                el("ul", { class: "tldr-highlights" },
+                    ...TLDR.highlights.map(([what, role, detail]) => el("li", {},
+                        el("div", { class: "tldr-item-header" }, el("span", { class: "tldr-what" }, what), el("span", { class: "tldr-role" }, role)),
+                        el("p", {}, detail),
+                    )),
+                ),
+
+                el("h2", {}, "Skills"),
+                el("ul", { class: "tldr-skills" }, ...TLDR.skills.map((skill) => el("li", {}, skill))),
+
+                el("div", { class: "tldr-links" },
+                    el("a", { class: "tldr-link primary", href: "resume.pdf", ...external }, "resume.pdf ↗"),
+                    emailButton,
+                    el("a", { class: "tldr-link", href: CONTACT.linkedin, ...external }, "linkedin ↗"),
+                    el("a", { class: "tldr-link", href: CONTACT.github, ...external }, "github ↗"),
+                ),
+                el("p", { class: "tldr-hint" }, "psst, the rest of this site is a terminal. Close this and type ", el("code", {}, "help"), " to look around."),
+            ),
+        ),
+    );
+
+    closeButton.addEventListener("click", closeTldr);
+    emailButton.addEventListener("click", () => copyEmail(emailButton));
+    // Clicking the dark area around the window closes it
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+            closeTldr();
+        }
+    });
+    modal.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            closeTldr();
+        }
+    });
+    // The whole body is the terminal, which grabs focus on any click, so keep clicks in here to ourselves
+    stopTerminalClicks(modal);
+
+    document.body.append(modal);
+    return modal;
+}
+
+function stopTerminalClicks(node) {
+    for (const event of ["mousedown", "mouseup", "click", "contextmenu"]) {
+        node.addEventListener(event, (e) => e.stopPropagation());
+    }
+}
+
+function openTldr() {
+    tldrModal ??= buildTldr();
+    tldrModal.hidden = false;
+    term.disable();
+    tldrModal.querySelector(".tldr-close").focus();
+}
+
+function closeTldr() {
+    tldrModal.hidden = true;
+    term.enable();
+    term.focus();
+}
+
 const commands = {
     help: function() {
         this.echo("This is my attempt at recreating my personal website as a terminal. This only has the basic terminal features though.");
@@ -552,6 +656,7 @@ const commands = {
         this.echo("    touch -- Creates an empty file lol");
         this.echo("    rm -- Removes a file or directory");
         this.echo("\nOther Commands:");
+        this.echo("    tldr -- The quick version, for recruiters and the impatient");
         this.echo("    email -- Copies my email to your clipboard");
         this.echo("    linkedin, github -- Opens my profile");
         this.echo("    crt -- Toggles the retro CRT screen effect (or crt on / crt off)");
@@ -644,6 +749,10 @@ const commands = {
         }
     },
 
+    tldr: function() {
+        openTldr();
+    },
+
     linkedin: function() {
         this.echo(`opening ${CONTACT.linkedin}`);
         window.open(CONTACT.linkedin);
@@ -686,6 +795,10 @@ try {
     savedCrt = localStorage.getItem("crt");
 } catch {}
 document.body.classList.toggle("crt", savedCrt !== "off");
+
+const tldrButton = document.getElementById("tldr-button");
+tldrButton.addEventListener("click", openTldr);
+stopTerminalClicks(tldrButton);
 
 updatePrompt();
 fs.setErrorFunc((error) => {term.echo(toColor(error, colors.red))});
