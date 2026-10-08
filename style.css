@@ -11,8 +11,10 @@
     --crt-vignette: 0.6;        /* how dark the screen corners get */
     --crt-roll: 0.035;          /* brightness of the band that slowly rolls down the screen */
 
-    --tldr-gap: 12px;           /* space between the tldr button and the top of the screen */
+    --tldr-gap: 12px;           /* space above and below the tldr button */
     --tldr-height: 26px;
+    --tldr-nudge: 3px;          /* text sits a few px below the top of its line, so pull the terminal up to make the gaps *look* even */
+    --top-bar: calc(var(--tldr-gap) * 2 + var(--tldr-height) - var(--tldr-nudge)); /* space reserved at the top for the tldr button */
  }
 
  .terminal {
@@ -50,6 +52,14 @@
 
 body.crt #tldr-button {
     text-shadow: 0 0 6px rgba(255, 121, 198, 0.6);
+}
+
+
+/* Start the terminal's scrolling area below the tldr button, so output (and the prompt after `clear`) never slides under it */
+.terminal-scroller {
+    margin-top: var(--top-bar);
+    padding-top: 0 !important; /* the reserved space already handles the gap, so the button has even space above and below */
+    height: calc(100% - var(--top-bar)) !important;
 }
 
 
