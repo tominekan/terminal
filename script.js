@@ -1,21 +1,24 @@
 /**
  * script.js
- *  Rework of the fake terminal to be more extensible. Will probably uadd more updates the more I learn about CS.
- *  
- * 
+ *  The fake terminal. All of the actual content lives in content.js, this file just handles
+ *  the filesystem and the commands.
+ *
  * This is the Project Structure:
- * 
+ *
  * Root:
- * |- Projects
- *    |- Tetris1200.java
- *    |- designs.sketch
- *    |- klarg.py
- *    |- musingsv2.py
- * |- Contact
- *    |- contactinfo.txt
- *    |- resume.pdf
  * |- About
  *    |- whoiam.txt
+ *    |- skills.txt
+ *    |- resume.pdf
+ * |- Education
+ *    |- upenn.txt
+ * |- Experience
+ *    |- microsoft.txt, cnt_research.txt, weingarten.txt, fife_penn.txt, leadership.txt
+ * |- Projects
+ *    |- babydb.c, styletransfer.py, pycomplete.py
+ *    |- archive (older projects)
+ * |- Contact
+ *    |- contactinfo.txt
  */
 
 // Follows the Dracula color scheme
@@ -30,10 +33,63 @@ const colors = {
 /**
  * @param {String} text the text we want to change
  * @param {String} color the color we want to change it to
- * @returns the text changed to a specific color 
+ * @param {String} style jquery.terminal style flags, b = bold, u = underline, i = italic
+ * @returns the text changed to a specific color
  */
-function toColor(text, color) {
-    return `[[b;${color};]${text}]`
+function toColor(text, color, style="b") {
+    return `[[${style};${color};]${text}]`
+}
+
+
+/**
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * File and Directory Classes
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+
+class File {
+    /**
+     * @param {String} name the name of the file
+     * @param {Directory} parent the directory this file lives in
+     * @param {Object} data what's in the file, one of text(), link(), or entry() from content.js
+     */
+    constructor(name, parent, data=text("")) {
+        this.name = name;
+        this.parent = parent;
+        this.data = data;
+    }
+}
+
+class Directory {
+    /**
+     * @param {String} name the name of the directory
+     * @param {Directory} parent the parent directory, null for the root
+     */
+    constructor(name, parent) {
+        this.name = name;
+        this.parent = parent;
+        this.children = {};
+    }
+
+    add(node) {
+        this.children[node.name] = node;
+    }
+
+    remove(name) {
+        delete this.children[name];
+    }
+
+    contains(name) {
+        return name in this.children;
+    }
+
+    get(name) {
+        return this.children[name];
+    }
+
+    list() {
+        return Object.values(this.children);
+    }
 }
 
 
@@ -44,7 +100,7 @@ function toColor(text, color) {
  */
 class FileSystem {
     /**
-     * Create a new filesystem with a root directory. This doesn't support some more advanced features like regex. 
+     * Create a new filesystem with a root directory. This doesn't support some more advanced features like regex.
      * @param {Function} onError a function to handle errors, it should take in one argument, the error message to handle.
      */
     constructor(onError=null) {
@@ -53,483 +109,182 @@ class FileSystem {
         this.errorFunc = onError;
     }
 
-    /**
-     * Sets the function to handle errors
-     * @param {Function} errFunc a function that must take in a string argument
-     */
     setErrorFunc(errFunc) {
         this.errorFunc = errFunc;
     }
 
     /**
-     * Returns a Directory or file from the path specified
-     * @param {String} path the path to handle 
-     * @param {String} funcName name of the function that's colling this method
-     * @returns the directroy or File from path
+     * Fills the filesystem from a nested object like CONTENT in content.js
+     * @param {Object} tree plain objects are directories, anything with a `kind` is a file
+     * @param {Directory} dir the directory to load into
      */
-    #getFromPath(path, funcName) {
-        // If the path is empty, then we know that we're referring to the root directory
-        if ((path === "") || (path === "~")) {
-            return this.root;
-        }
-
-        let tempCwd = this.cwd;
-        let pathSplit = path.trim().split("/");
-        // Remove all empty elements from the list
-        pathSplit = pathSplit.filter((elem) => elem !== "")
-        if (path.startsWith("/")) {
-            tempCwd = this.root;
-        }
-
-        // So start backtracking
-        for (const dirname of pathSplit) {
-            // Start tracking back
-            let pathSet = new Set(dirname);
-            // Then we know that this path consists dots only
-            if (dirname.startsWith(".") && (pathSet.size === 1)) {
-                for (let i = 1; i < dirname.length; i++) {
-                    if (tempCwd != this.root) {
-                        tempCwd = tempCwd.getParentDir();
-                    }
-                }
+    load(tree, dir=this.root) {
+        for (const [name, value] of Object.entries(tree)) {
+            if (value.kind) {
+                dir.add(new File(name, dir, value));
             } else {
-                // Otherwise try to find the directory
-                if (!tempCwd.contains(dirname) && (dirname !== "")) {
-                    this.errorFunc(`${funcName}: no such file or directory: ${path}`);
-                    return -1; // exit da program early
-                }
-                tempCwd = tempCwd.get(dirname);
-            }
-        }
-        
-        return tempCwd;
-    }
-
-    /**.
-     * @param {*} path the path to the file/Directory we're talking about
-     * @returns an object with a `parent` key, a string representing the path to the parent,
-     * and the `child` key, which is the child item, File or Directory.
-     */
-    #getParentDir(path) {
-        let splitPath = path.split("/");
-        let item = splitPath.pop();
-        let parent = splitPath.join("/");
-
-        return {
-            "parent": parent,
-            "child": item
-        };
-    }
-
-    /**
-     * Adds a list of all those directories
-     * @param {Array} directories all the new directories we need to create
-     */
-    mkdir(directories) {
-        for (const item of directories) {
-            let parentChild = {
-                "parent": this.pwd(),
-                "child": item
-            };
-            // Grab the parent folder from the specified path 
-            if (item.includes("/")) {
-                parentChild = this.#getParentDir(item);
-            }
-
-            let tempCwd = this.#getFromPath(parentChild["parent"], "mkdir");
-            if (tempCwd !== -1) {
-                if (tempCwd.contains(parentChild["child"])) {
-                    this.errorFunc(`mkdir: ${item}: File exists`);
-                    return -1;
-                }
-
-                if (tempCwd.type() === "file") {
-                    this.errorFunc(`mkdir: ${item}: not a directory`);
-                    return -1;
-                }
-
-                let newDir = new Directory(parentChild["child"], tempCwd);
-                tempCwd.add(newDir);
+                const subdir = new Directory(name, dir);
+                dir.add(subdir);
+                this.load(value, subdir);
             }
         }
     }
 
     /**
-     * Displays a list of contents
-     * @param {*} directories the list of directories to view
-     * @param {*} displayFunction the function to display contents of the directory
-     * it should be able to handle both Arrays and Strings.
+     * Finds the File or Directory at a path. Handles ~, /, ., and .. like a normal unix shell
+     * @param {String} path the path to look up
+     * @returns the File or Directory, or null if nothing's there
      */
-    ls(directories, displayFunction) {
-        if (directories.length == 0) {
-            displayFunction(this.cwd.getContents());
-            return 0;
+    resolve(path="") {
+        let node = this.cwd;
+        if (path.startsWith("~") || path.startsWith("/")) {
+            node = this.root;
+            path = path.replace(/^~/, "");
         }
-        for (const item of directories) {
-            let dir = this.#getFromPath(item, "ls");
-            displayFunction(`${item}:`);
-            displayFunction(dir.getContents());
-        }
-    }
 
-    /**
-     * Act's akin to rm -rfv items
-     * @param {Array} items the items to remove  
-     */
-    rm(items) {
-        for (const item of items) {
-            let itemObject = this.#getFromPath(item, 'rm');
-            if (itemObject !== -1) {
-                itemObject.parent.remove(itemObject.getName());
+        for (const part of path.split("/")) {
+            if (part === "" || part === ".") {
+                continue;
             }
+            if (part === "..") {
+                node = node.parent ?? node;
+                continue;
+            }
+            if (!(node instanceof Directory) || !node.contains(part)) {
+                return null;
+            }
+            node = node.get(part);
         }
+        return node;
+    }
+
+    #fail(message) {
+        if (this.errorFunc) {
+            this.errorFunc(message);
+        }
+        return null;
+    }
+
+    /** resolve(), but reports an error if nothing's there */
+    #lookup(path, cmd) {
+        return this.resolve(path) ?? this.#fail(`${cmd}: no such file or directory: ${path}`);
     }
 
     /**
-     * Change the current working directory to whatever path is
-     * @param {String} path the path of the file
+     * Splits a path into the directory it would live in and its name, for creating new things
+     * @returns an object `{dir, name}`, or null if the parent directory doesn't exist
+     */
+    #lookupParent(path, cmd) {
+        const trimmed = path.replace(/\/+$/, "");
+        const slash = trimmed.lastIndexOf("/");
+        const name = trimmed.slice(slash + 1);
+        const dir = (slash === -1) ? this.cwd : this.resolve(trimmed.slice(0, slash) || "/");
+
+        if (!(dir instanceof Directory)) {
+            return this.#fail(`${cmd}: no such directory: ${path}`);
+        }
+        return { dir, name };
+    }
+
+    /**
+     * @param {String} path the path to a file
+     * @param {String} cmd name of the command asking, for error messages
+     * @returns the File at path, or null if it doesn't exist or is a directory
+     */
+    readFile(path, cmd) {
+        const node = this.#lookup(path, cmd);
+        if (node instanceof Directory) {
+            return this.#fail(`${cmd}: ${path}: is a directory`);
+        }
+        return node;
+    }
+
+    /**
+     * @param {String} path the directory (or file) to list, the cwd by default
+     * @returns an array of Files and Directories, or null on error
+     */
+    ls(path) {
+        const node = (path === undefined) ? this.cwd : this.#lookup(path, "ls");
+        if (node === null) {
+            return null;
+        }
+        return (node instanceof Directory) ? node.list() : [node];
+    }
+
+    /**
+     * Change the current working directory, back to root if path is undefined
      */
     cd(path) {
-        if (path === undefined) {
-            this.cwd = this.root;
-        } else {
-            let newCwd = this.#getFromPath(path, "cd");
-            if (newCwd != -1) {
-                if (newCwd.type() === "file") {
-                    this.errorFunc(`cd: not a directory: ${item}`);
-                    return -1;
-                }
-                this.cwd = newCwd;
-            }
-
+        const node = this.#lookup(path ?? "~", "cd");
+        if (node === null) {
+            return;
         }
+        if (node instanceof File) {
+            this.#fail(`cd: not a directory: ${path}`);
+            return;
+        }
+        this.cwd = node;
     }
 
     /**
-     * @returns a string representation of the current working directory
+     * @returns a string representation of the current working directory, like ~/Projects/archive
      */
     pwd() {
-        let filePath = "";
-        let tempCwd = this.cwd;
-
-        // Backtrack to add it all back up
-        while (tempCwd != this.root) {
-            filePath += "/" + tempCwd.getName();
-            tempCwd = tempCwd.getParentDir();
+        const parts = [];
+        for (let node = this.cwd; node !== this.root; node = node.parent) {
+            parts.unshift(node.name);
         }
+        return ["~", ...parts].join("/");
+    }
 
-        return filePath;
+    mkdir(paths) {
+        for (const path of paths) {
+            const target = this.#lookupParent(path, "mkdir");
+            if (target === null) {
+                continue;
+            }
+            if (target.dir.contains(target.name)) {
+                this.#fail(`mkdir: ${path}: File exists`);
+                continue;
+            }
+            target.dir.add(new Directory(target.name, target.dir));
+        }
     }
 
     /**
      * Creates an empty file if the file does not exist
-     * @param {Array} filenames a list of all the files to add
      */
-    touch(filenames) {
-        for (const file of filenames) {
-            let info = {
-                "parent": this.pwd(),
-                "child": file
-            };
-
-            if (file.includes("/")) {
-                info = this.#getParentDir(file);
-            }
-
-            let tempCwd = this.#getFromPath(info["parent"], "touch");
-            if (!tempCwd.contains(info["child"])) {
-                tempCwd.add(info["child"], "file");
+    touch(paths) {
+        for (const path of paths) {
+            const target = this.#lookupParent(path, "touch");
+            if (target !== null && !target.dir.contains(target.name)) {
+                target.dir.add(new File(target.name, target.dir));
             }
         }
     }
 
-
     /**
-     * Opens a file using the default method for the file
-     * @param {String} filename the name of the file we want to open
+     * Act's akin to rm -rf items
      */
-    open(filename) {
-        if (filename.length === 0) {
-            this.errorFunc(`open: no arguments provided`);
-            return -1;
-        }
-
-        for (const file of filename) {
-            let info = {
-                "parent": this.pwd(),
-                "child": file
-            };
-
-            if (file.includes("/")) {
-                info = this.#getParentDir(file);
+    rm(paths) {
+        for (const path of paths) {
+            const node = this.#lookup(path, "rm");
+            if (node === null) {
+                continue;
             }
-            let tempCwd = this.#getFromPath(info["parent"], "open");
-            if (tempCwd != -1) {
-                if (!tempCwd.contains(info["child"]) || (tempCwd.type() === "file")) {
-                    this.errorFunc(`open: ${file}: file does not exist`);
-                    return -1;
+            if (node === this.root) {
+                this.#fail("rm: refusing to remove root, nice try");
+                continue;
+            }
+            // If we just deleted a folder we're inside of, hop out of it
+            for (let dir = this.cwd; dir !== null; dir = dir.parent) {
+                if (dir === node) {
+                    this.cwd = node.parent;
                 }
-
-                tempCwd.openFile(info["child"]);
             }
-        }
-
-
-    }
-
-    /**
-     * Opens a file using a specified method
-     * @param {*} filename the path to the file we want to open
-     * @param {*} func the function to open the file
-     */
-    customOpen(filename, func, funcName="customOpen") {
-        if (filename.length === 0) {
-            this.errorFunc(`${funcName}: no arguments provided`);
-            return -1;
-        }
-
-        for (const file of filename) {
-            let info = {
-                "parent": this.pwd(),
-                "child": file
-            };
-
-            if (file.includes("/")) {
-                info = this.#getParentDir(file);
-            }
-
-            let tempCwd = this.#getFromPath(info["parent"], funcName);
-            if (tempCwd != -1) {
-                if (!tempCwd.contains(info["child"]) || (tempCwd.type() === "file")) {
-                    this.errorFunc(`${funcName}: ${file}: file does not exist`);
-                    return -1;
-                }
-
-                tempCwd.get(info["child"]).customOpen(func);
-            }
-        }
-
-    }
-
-    /**
-     * The creates a new file within the cwd
-     * @param {} filename name of the file
-     * @param {*} content the content of the file
-     * @param {*} opener the method to open the file
-     */
-    createFile(filename, content, opener=null) {
-        let info = this.#getParentDir(filename);
-        let tempCwd = this.#getFromPath(info["parent"], "createFile");
-        if (tempCwd != -1) {
-            if (tempCwd.type() == "file") {
-                this.errorFunc(`createFile: ${filename}: not a directory`)
-                return -1;
-            }
-            tempCwd.createFile(info["child"], content, opener);
+            node.parent.remove(node.name);
         }
     }
-}
-
-/**
- * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- * File Class
- * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- */
-
-class File {
-    /**
-     * Constructs a new File node, I might need to make this more robust later, to handle links and stuff
-     * @param {String} fname the name of the file
-     * @param {*} content the content of the file
-     * @param {Directory} parent_dir the name of the parent directory
-     * @param {Function} opener a function to open the file, it must take in a single argument, the content. 
-     * By default it has none
-     */
-    constructor(fname, content, parent_dir, opener=null) {
-        this.fname = fname;
-        this.content = content;
-        this.parent = parent_dir;
-        this.opener = opener;
-    }
-
-    /**
-     * @returns the content of this file
-     */
-    getContent() {
-        return this.content;
-    }
-
-    /**
-     * @returns the parent directory of this file
-     */
-    getParentDir() {
-        return this.parent;
-    }
-
-    /**
-     * @returns the name of this file
-     */
-    getName() {
-        return this.fname;
-    }
-
-    /**
-     * Opens the file using the function specified in opener
-     */
-    open() {
-        if (this.opener != null) {
-            this.opener(this.content);
-        }
-    }
-
-    /**
-     * @returns the type of object this is, 
-     */
-    type() {
-        return "file";
-    }
-
-    /**
-     * Sets the new opening function
-     * @param {Function} newOpener the new function to open the contents of the file
-     */
-    setOpener(newOpener) {
-        this.opener = newOpener;
-    } 
-
-    /**
-     * Opens the file using a custom opener
-     * @param {Function} customOpener the method to open the file
-     */
-    customOpen(customOpener) {
-        customOpener(this.content);
-    }
-
-    /**
-     * @returns the name of the file
-     */
-    getContents() {
-        return this.fname;
-    }
-}
-
-/**
- * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- * Directory Class
- * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- */
-
-class Directory {
-    /**
-     * Constructs a new, empty Directory node.
-     * @param {String} dirname the name of the directory
-     * @param {Directory} parent_dir the parent directory
-     */
-    constructor(dirname, parent_dir) {
-        this.dirname = dirname;
-        this.parent = parent_dir;
-        this.contents = {};
-    }
-
-    /**
-     * @returns the type of object this is
-     */
-    type() {
-        return "directory";
-    }
-
-    /**
-     * @returns the contents of this directory
-     */
-    getContents() {
-        return Object.values(this.contents);
-    }
-
-    /**
-     * Adds a Directory or File to this directory
-     * @param {String | File | Directory} content the object we want to add to this directory, 
-     * @param {String} type the type of content to add, "dir" for directory, and "file" for file
-     * if it's a string, then it creates an empty file with the specified name
-     */
-    add(item, type="dir") {
-        if ((item instanceof Directory) || (item instanceof File)) {
-            this.contents[item.getName()] = item;
-        } else {
-            // Otherwise initialize an empty file
-            if (type === "dir") {
-                this.contents[item] = new Directory(item, this);
-            } else {
-                this.contents[item] = new File(item, "", this);
-            }
-        }
-    }
-    /**
-     * Removes an item, Directory or File, from this Directory
-     * @param {String | File | Directory} item the item we want to remove
-     */
-    remove(item) {
-        if ((item instanceof Directory) || (item instanceof File)) {
-            delete this.contents[item.getName()]
-        } else {
-            // Otherwise it must be a string
-            delete this.contents[item];
-        }
-    }
-
-    /**
-     * @returns the parent directory as a Directory object
-     */
-    getParentDir() {
-        return this.parent;
-    }
-
-    /**
-     * @returns the name of this directory
-     */
-    getName() {
-        return this.dirname;
-    }
-
-    /**
-     * Checks if an item, file or directory is in this directory
-     * @param {String | Directory | File} name the name of the Directory or File. If the type of name is Directory/File, then we check 
-     * if it's in the directory content. it also works for just file/folder names too.
-     * @returns true if the item is in the directory, false otherwise
-     */
-    contains(name) {
-        if ((name instanceof Directory) || (name instanceof File)) {
-            return (name.getName() in this.contents);
-        }
-        return (name in this.contents);
-    }
-
-    /**
-     * Gets the `Directory` or `File object associated with `directory_name`
-     * @param {String} item_name the name of the file or directory
-     * @returns a Directory object 
-     */
-    get(item_name) {
-        return this.contents[item_name]
-    }
-
-    /**
-     * Opens the file if it's in this directory
-     * @param {String} filename the name of the file to open 
-     */
-    openFile(filename) {
-        this.contents[filename].open()
-    }
-
-    /**
-     * Creates a new file with a custom opening method
-     * @param {*} filename the name of the file
-     * @param {*} content the content of the file
-     * @param {*} opener method to open the file
-     */
-    createFile(filename, content, opener) {
-        this.contents[filename] = new File(filename, content, this, opener);
-    } 
-
 }
 
 
@@ -539,179 +294,349 @@ class Directory {
  * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  */
 
-let openInNewWindow = (item) => window.open(item);
-
-// In Projects Directory
 let fs = new FileSystem();
-fs.mkdir(["Projects", "About", "Contact"]);
+fs.load(CONTENT);
 
-
-function colorcodeFS(items) {
-    newItems = [];
-    for (const item of items) {
-        if (item.type() === "directory") {
-            newItems.push(toColor(item.getName(), colors.purple));
-        } else {
-            newItems.push(item.getName());
+/**
+ * Turns a file's data (from content.js) into a string the terminal can print
+ */
+function render(data) {
+    switch (data.kind) {
+        case "link":
+            return data.url;
+        case "entry": {
+            let header = toColor(data.title, colors.pink, "bu");
+            if (data.date) {
+                header += "  " + toColor(data.date, colors.purple, "i");
+            }
+            return "\n" + header + "\n" + data.bullets.map((bullet) => `  • ${bullet}`).join("\n") + "\n";
         }
+        default:
+            return data.body;
     }
-
-    return newItems;
 }
 
-// Actual Terminal
-let term = $('body').terminal({
+function colorcodeFS(items) {
+    return items.map((item) => (item instanceof Directory) ? toColor(item.name, colors.purple) : item.name);
+}
+
+/**
+ * jquery.terminal passes arguments as numbers sometimes, this makes sure a command always gets an array of strings
+ */
+const withArgs = (fn) => function(...args) {
+    return fn.call(this, args.map(String));
+};
+
+function updatePrompt() {
+    term.set_prompt(`[[;${colors.green};]tomster@localhost] [[b;${colors.cyan};]${fs.pwd()}] `);
+}
+
+/**
+ * Figures out what Tab should do for what's been typed so far
+ * @param {String} command everything typed at the prompt
+ * @param {Array} commandNames the names of all the commands
+ * @returns `{before, matches}` to cycle through, `{list}` to print, or null to do nothing
+ */
+function complete(command, commandNames) {
+    if (command.trim() === "") {
+        return null;
+    }
+
+    // No space yet, so we're still typing the command name
+    const space = command.lastIndexOf(" ");
+    if (space === -1) {
+        return matchesFor(command, "", commandNames);
+    }
+
+    const word = command.slice(space + 1);
+    const slash = word.lastIndexOf("/");
+    const dir = fs.resolve(word.slice(0, slash + 1));
+    const partial = word.slice(slash + 1);
+    if (!(dir instanceof Directory)) {
+        return null;
+    }
+
+    // cd only cares about directories
+    const onlyDirs = command.trim().split(/\s+/)[0] === "cd";
+    const items = dir.list().filter((item) => !onlyDirs || item instanceof Directory);
+
+    if (partial === "") {
+        return (items.length > 0) ? { list: items } : null;
+    }
+    const names = items.map((item) => (item instanceof Directory) ? item.name + "/" : item.name);
+    return matchesFor(partial, command.slice(0, command.length - partial.length), names);
+}
+
+/**
+ * @returns `{before, matches}` with every candidate starting with partial (ignoring case), or null if there are none
+ */
+function matchesFor(partial, before, candidates) {
+    const matches = candidates
+        .filter((name) => name.toLowerCase().startsWith(partial.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b));
+    return (matches.length > 0) ? { before, matches } : null;
+}
+
+// What the last Tab completed to, so pressing Tab again cycles to the next match
+let tabState = null;
+
+function onTab() {
+    const command = term.get_command();
+
+    if (tabState !== null && command === tabState.text) {
+        tabState.index = (tabState.index + 1) % tabState.matches.length;
+    } else {
+        tabState = null;
+        const result = complete(command, Object.keys(commands));
+        if (result === null) {
+            return false;
+        }
+        if (result.list) {
+            term.echo(colorcodeFS(result.list));
+            return false;
+        }
+        tabState = { ...result, index: 0 };
+    }
+
+    tabState.text = tabState.before + tabState.matches[tabState.index];
+    term.set_command(tabState.text);
+
+    // With only one match there's nothing to cycle, so the next Tab starts fresh
+    // (e.g. `cd Exp` -> `cd Experience/`, then Tab again lists what's inside)
+    if (tabState.matches.length === 1) {
+        tabState = null;
+    }
+    return false;
+}
+
+
+/**
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * Spotify
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+
+// The Netlify function (netlify/functions/spotify.mjs), using the full url so it also works when index.html is opened from disk
+const SPOTIFY_API = "https://tominekan.netlify.app/.netlify/functions/spotify";
+const SPOTIFY_RANGES = { month: "short_term", "6months": "medium_term", alltime: "long_term" };
+const RANGE_LABELS = { short_term: "last 4 weeks", medium_term: "last 6 months", long_term: "all time" };
+
+// Album art is ART_SIZE x ART_SIZE pixels, and each line of text fits two rows of them
+const ART_SIZE = 16;
+
+/** Song names can have brackets in them, which would mess up the terminal formatting */
+const escapeBrackets = (text) => $.terminal.escape_brackets(text);
+
+function formatTime(ms) {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function timeAgo(date) {
+    const minutes = Math.floor((Date.now() - new Date(date)) / 60000);
+    if (minutes < 60) {
+        return `${minutes} min ago`;
+    }
+    if (minutes < 60 * 24) {
+        return `${Math.floor(minutes / 60)} hr ago`;
+    }
+    return `${Math.floor(minutes / (60 * 24))} days ago`;
+}
+
+function progressBar(progressMs, durationMs, width=24) {
+    const filled = Math.min(Math.round(progressMs / durationMs * width), width);
+    const bar = toColor("━".repeat(filled), colors.green, "") + "●" + "─".repeat(width - filled);
+    return `${bar}  ${formatTime(progressMs)} / ${formatTime(durationMs)}`;
+}
+
+/**
+ * Draws the album cover with colored half-block characters (▀), where the text color is the top
+ * pixel and the background color is the bottom one
+ * @returns a promise of an array of lines, or null if the image couldn't load
+ */
+function albumArt(url) {
+    return new Promise((resolve) => {
+        if (!url) {
+            resolve(null);
+            return;
+        }
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onerror = () => resolve(null);
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = ART_SIZE;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, ART_SIZE, ART_SIZE);
+            const pixels = ctx.getImageData(0, 0, ART_SIZE, ART_SIZE).data;
+            const hex = (x, y) => {
+                const i = (y * ART_SIZE + x) * 4;
+                return "#" + [pixels[i], pixels[i + 1], pixels[i + 2]].map((v) => v.toString(16).padStart(2, "0")).join("");
+            };
+
+            const lines = [];
+            for (let y = 0; y < ART_SIZE; y += 2) {
+                let line = "";
+                for (let x = 0; x < ART_SIZE; x++) {
+                    line += `[[;${hex(x, y)};${hex(x, y + 1)}]▀]`;
+                }
+                lines.push(line);
+            }
+            resolve(lines);
+        };
+        img.src = url;
+    });
+}
+
+async function renderNowPlaying(now) {
+    let status = toColor("♫ NOW PLAYING", colors.green);
+    let footer = progressBar(now.progressMs, now.durationMs);
+    if (now.playedAt) {
+        status = toColor("♫ LAST PLAYED", colors.purple);
+        footer = timeAgo(now.playedAt);
+    } else if (!now.isPlaying) {
+        status = toColor("❚❚ PAUSED", colors.purple);
+    }
+
+    const info = ["", status, toColor(escapeBrackets(now.name), colors.pink), escapeBrackets(now.artists), "", footer];
+    const art = await albumArt(now.image);
+    if (art === null) {
+        return info.join("\n");
+    }
+    return art.map((line, i) => `${line}   ${info[i] ?? ""}`).join("\n");
+}
+
+function renderTopTracks(tracks, range) {
+    const lines = tracks.map((track, i) => `${i + 1}. ${escapeBrackets(track.name)} ${toColor("— " + escapeBrackets(track.artists), colors.purple, "")}`);
+    return `${toColor(`TOP TRACKS (${RANGE_LABELS[range]}):`, colors.pink, "bu")}\n${lines.join("\n")}`;
+}
+
+function showSpotify2023() {
+    term.echo(`\n[[bu;${colors.pink};]2023 TOP 5 ARTISTS:]`);
+    term.echo("1. Playboi Carti\n2. Pop Smoke\n3. POLO PERKS <3 <3 <3\n4. Homixide Gang\n5. Yeat");
+    term.echo(`\n[[bu;${colors.pink};]2023 TOP 5 SONGS:]`);
+    term.echo("1. Notice It (Homixide Gang)\n2. YA DIG (Menacelations)\n3. \"Who Killed Kenny (Evil Giane, Tommytohotty)\" (POLO PERKS <3 <3 <3)\n4. \"SomethingThatMatters (GonerProd)\" (POLO PERKS <3 <3 <3)\n5. \"i91 (SkrappDollaz)\" (POLO PERKS <3 <3 <3)\n");
+}
+
+async function showSpotify(range) {
+    let data;
+    try {
+        const res = await fetch(`${SPOTIFY_API}?range=${range}`);
+        data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error);
+        }
+    } catch {
+        term.echo(toColor("spotify: couldn't reach spotify right now, here's 2023 instead", colors.red));
+        showSpotify2023();
+        return;
+    }
+
+    if (data.now) {
+        term.echo(await renderNowPlaying(data.now));
+    }
+    term.echo("\n" + renderTopTracks(data.top, data.range) + "\n");
+}
+
+const commands = {
     help: function() {
         this.echo("This is my attempt at recreating my personal website as a terminal. This only has the basic terminal features though.");
-        this.echo("Use it like you would any unix command line.");
+        this.echo("Use it like you would any unix command line. Try `ls`, then `cd Experience`.");
         this.echo("\nBasic Unix Commands:");
-        this.echo("    cat -- Outputs the content of a file")
+        this.echo("    cat -- Outputs the content of a file");
         this.echo("    cd -- Changes the current directory of the terminal");
-        this.echo("    cwd -- Returns the directory the user is currently in");
+        this.echo("    pwd -- Returns the directory the user is currently in");
         this.echo("    ls -- Lists all the items in the directory");
-        this.echo("    open -- Opens the file, slightly different from cat\n");
+        this.echo("    open -- Opens the file, slightly different from cat");
         this.echo("    mkdir -- Create a new directory");
         this.echo("    touch -- Creates an empty file lol");
+        this.echo("    rm -- Removes a file or directory");
+        this.echo("\nOther Commands:");
+        this.echo("    spotify -- What I'm listening to + my top tracks (try month, 6months, alltime, or 2023)\n");
     },
 
-    ls: function(...input) {
-        // input = Array.from(input);
-        modified = input.map(String);
-        modified = Array.from(modified);
-        fs.ls(modified, (items) => {
-            if (typeof items === "string") {
-                this.echo(items)
-            } else {
-                this.echo(colorcodeFS(items))
+    ls: withArgs(function(paths) {
+        if (paths.length === 0) {
+            paths = [undefined];
+        }
+        for (const path of paths) {
+            const items = fs.ls(path);
+            if (items === null) {
+                continue;
             }
-        });
-    },
+            if (paths.length > 1) {
+                this.echo(`${path}:`);
+            }
+            this.echo(colorcodeFS(items));
+        }
+    }),
 
-    cd: function(input) { // Change directory function
-        fs.cd(input);
-        term.set_prompt(`[[;${colors.green};]tomster@localhost] [[b;${colors.cyan};]${fs.pwd()}] `);
+    cd: function(path) {
+        fs.cd(path === undefined ? undefined : String(path));
+        updatePrompt();
     },
 
     pwd: function() {
         this.echo(fs.pwd());
     },
 
-    cat: function(...input) {
-        modified = input.map(String);
-        modified = Array.from(modified);
-        fs.customOpen(modified, term.echo, "cat");
-    },
+    cat: withArgs(function(paths) {
+        for (const path of paths) {
+            const file = fs.readFile(path, "cat");
+            if (file !== null) {
+                this.echo(render(file.data));
+            }
+        }
+    }),
 
-    open: function(...input) {
-        modified = input.map(String);
-        modified = Array.from(modified);
-        fs.open(modified)
-    },
+    open: withArgs(function(paths) {
+        if (paths.length === 0) {
+            this.echo(toColor("open: no arguments provided", colors.red));
+        }
+        for (const path of paths) {
+            const file = fs.readFile(path, "open");
+            if (file === null) {
+                continue;
+            }
+            if (file.data.kind === "link") {
+                window.open(file.data.url);
+            } else {
+                this.echo(render(file.data));
+            }
+        }
+    }),
 
-    mkdir: function(...input) {
-        modified = input.map(String);
-        modified = Array.from(modified);
-        fs.mkdir(modified);
-    },
+    mkdir: withArgs((paths) => fs.mkdir(paths)),
 
-    rm: function(...input) {
-        modified = input.map(String);
-        modified = Array.from(modified);
-        fs.rm(modified);
-    },
+    rm: withArgs(function(paths) {
+        fs.rm(paths);
+        updatePrompt();
+    }),
 
-    touch: function(...input) {
-        modified = input.map(String);
-        modified = Array.from(modified);
-        fs.touch(modified);
-    },
+    touch: withArgs((paths) => fs.touch(paths)),
 
-    spotify: function() {
-        term.echo(`\n[[bu;${colors.pink};]2023 TOP 5 ARTISTS:]`);
-        term.echo("1. Playboi Carti\n2. Pop Smoke\n3. POLO PERKS <3 <3 <3\n4. Homixide Gang\n5. Yeat");
-        term.echo(`\n[[bu;${colors.pink};]2023 TOP 5 SONGS:]`);
-        term.echo("1. Notice It (Homixide Gang)\n2. YA DIG (Menacelations)\n3. \"Who Killed Kenny (Evil Giane, Tommytohotty)\" (POLO PERKS <3 <3 <3)\n4. \"SomethingThatMatters (GonerProd)\" (POLO PERKS <3 <3 <3)\n5. \"i91 (SkrappDollaz)\" (POLO PERKS <3 <3 <3)\n");
-    }
+    // Returning the promise makes the terminal wait (and block input) until spotify answers
+    spotify: withArgs(function(args) {
+        const option = args[0];
+        if (option === "2023") {
+            showSpotify2023();
+            return;
+        }
+        if (option !== undefined && !(option in SPOTIFY_RANGES)) {
+            this.echo(toColor(`spotify: unknown option ${option}, try month, 6months, alltime, or 2023`, colors.red));
+            return;
+        }
+        return showSpotify(SPOTIFY_RANGES[option ?? "month"]);
+    })
 
-}, {
+};
+
+// Actual Terminal
+let term = $('body').terminal(commands, {
     checkArity: false,
+    keymap: { TAB: onTab },
     greetings: greetings.innerHTML,
 });
 
-term.set_prompt(`[[;${colors.green};]tomster@localhost] [[b;${colors.cyan};]${fs.pwd()}] `);
+updatePrompt();
 fs.setErrorFunc((error) => {term.echo(toColor(error, colors.red))});
-
-fs.createFile(
-    "Contact/contactinfo.txt",
-     `\nEmail: tominekan12@gmail.com
-Github: https://github.com/tominekan
-Linkedin: https://www.linkedin.com/in/oluwatomisin-adenekan-50b207247/`,
-term.echo
-);
-
-fs.createFile(
-    "Projects/Tetris1200.java",
-    `[[bu;${colors.pink};] TETRIS1200:] 
-[[i;${colors.purple};]INFO:]: This is a Tetris game built with Java and Swing UI. Tetris1200 features a retro UI, multiple game modes, game saves, and more.`,
-term.echo
-);
-
-fs.createFile(
-    "Projects/pycomplete.py",
-    `[[bu;${colors.pink};] PYCOMPLETE:] 
-[[i;${colors.purple};]INFO:]: I put together some stuff I learned about Markov Chains and implemented my own Markov-chain based autocomplete library.
-I then implemented the frontend with React`,
-term.echo
-);
-
-// Projects Directory
-fs.createFile(
-    "Projects/designs.sketch",
-     `[[bu;${colors.pink};]PERSONAL DESIGNS:]
-These are a collection of .sketch files of websites I've made. You can check them out on my github. https://github.com/tominekan`,
-term.echo
-);
-
-fs.createFile(
-    "Projects/klarg.py",
-    `[[bu;${colors.pink};]Kommand Line ARgument Parser:]
-[[i;${colors.purple};]INFO:] This is a python library (with an incredibly goofy name).
-It's is an incredibly easy to use command line argument parsing script using zero external libraries and a less-than 25kB file size.`,
-term.echo
-);
-
-fs.createFile(
-    "Projects/musingsv2.py",
-    `[[bu;${colors.pink};]Musings, my blog:]
-[[i;${colors.purple};]INFO:] This is a blog I designed in Lunacy and developed with Django and Bootstrap.
-It's a repository for my writings about the stuff I'm currently thinking about. I have a few more ideas to make it better as time goes on.`,
-term.echo
-);
-
-fs.createFile(
-    "Projects/wave.cpp",
-    `[[bu;${colors.pink};]Wave:]
-[[i;${colors.purple};]INFO:]  It's a C++ based commmand line tool to edit the audio file metadata. It lets you edit the common properties like album cover art,
-artist name, song genre, and more. I created this so that I don't have to open apple music every time I want to change the metadata of songs I download, which is 
-somethign I do pretty frequently.
-`
-)
-
-// About Directory
-fs.createFile(
-    "About/whoiam.txt",
-    `I'm Tomi Adenekan, a college sophomore interested in coding, data analytics, and philosophy.
-Ever since moving to the U.S. from Nigeria in 2016, I taught myself how to use computers through small hands on projects. 
-I love cooking, working out, coding, watching anime, and talking about philosophy with friends.
-I work with schools throughout Philadelphia to teach Scratch and Python through the UPenn-Fife CS Academy, and I tutor math through Penn's Weingarten Center.
-
-I'm currently working towards a BSE in Computer Science and a minor in Philosophy at the University of Pennsylvania (might even tack on a masters in data science too).`,
-term.echo
-);
-
-
-fs.createFile(
-    "About/resume.pdf",
-    "resume.pdf",
-    openInNewWindow
-);

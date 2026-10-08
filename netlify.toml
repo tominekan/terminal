@@ -1,0 +1,7 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# Also used by Netlify Functions. The spotify function needs at least Node 18 (for fetch), 24 matches local
+[build.environment]
+  NODE_VERSION = "24"
