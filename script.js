@@ -552,6 +552,9 @@ const commands = {
         this.echo("    touch -- Creates an empty file lol");
         this.echo("    rm -- Removes a file or directory");
         this.echo("\nOther Commands:");
+        this.echo("    email -- Copies my email to your clipboard");
+        this.echo("    linkedin, github -- Opens my profile");
+        this.echo("    crt -- Toggles the retro CRT screen effect (or crt on / crt off)");
         this.echo("    spotify -- What I'm listening to + my top tracks (try month, 6months, alltime, or 2023)\n");
     },
 
@@ -627,6 +630,34 @@ const commands = {
             return;
         }
         return showSpotify(SPOTIFY_RANGES[option ?? "month"]);
+    }),
+
+    email: async function() {
+        try {
+            // Some browsers leave the clipboard request hanging instead of failing, so give up after a second
+            const timeout = new Promise((_, reject) => setTimeout(reject, 1000));
+            await Promise.race([navigator.clipboard.writeText(CONTACT.email), timeout]);
+            this.echo(`${CONTACT.email}  ${toColor("copied to clipboard!", colors.green)}`);
+        } catch {
+            // Clipboard access can be blocked, so just show it
+            this.echo(CONTACT.email);
+        }
+    },
+
+    linkedin: function() {
+        this.echo(`opening ${CONTACT.linkedin}`);
+        window.open(CONTACT.linkedin);
+    },
+
+    github: function() {
+        this.echo(`opening ${CONTACT.github}`);
+        window.open(CONTACT.github);
+    },
+
+    crt: withArgs(function(args) {
+        const on = (args[0] === "on") || (args[0] !== "off" && !document.body.classList.contains("crt"));
+        setCrt(on);
+        this.echo(`crt effect ${on ? "on" : "off"}`);
     })
 
 };
@@ -637,6 +668,24 @@ let term = $('body').terminal(commands, {
     keymap: { TAB: onTab },
     greetings: greetings.innerHTML,
 });
+
+/**
+ * Turns the CRT effect (style.css) on or off, and remembers the choice for next time
+ */
+function setCrt(on) {
+    document.body.classList.toggle("crt", on);
+    try {
+        localStorage.setItem("crt", on ? "on" : "off");
+    } catch {
+        // Storage can be blocked (private windows, etc.), the effect still works for this visit
+    }
+}
+
+let savedCrt = null;
+try {
+    savedCrt = localStorage.getItem("crt");
+} catch {}
+document.body.classList.toggle("crt", savedCrt !== "off");
 
 updatePrompt();
 fs.setErrorFunc((error) => {term.echo(toColor(error, colors.red))});

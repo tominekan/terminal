@@ -3,8 +3,80 @@
     --background: #282a36;
     --color: #f8f8f2;
     --link-color: #f1fa8c;
+
+    /* CRT knobs, set any of them to 0 to turn that part off */
+    --crt-glow: 45%;            /* how much the text glows in its own color */
+    --crt-aberration: 0.6px;    /* red/cyan color fringing on text */
+    --crt-scanlines: 0.22;      /* how dark the scanlines are */
+    --crt-vignette: 0.6;        /* how dark the screen corners get */
+    --crt-roll: 0.035;          /* brightness of the band that slowly rolls down the screen */
  }
 
  .terminal {
     font-size: 12px;
  }
+
+
+/**
+ * CRT effect, toggled with the `crt` command (adds/removes the `crt` class on body)
+ */
+
+/* Phosphor glow: each piece of text glows in its own color, plus slight red/cyan fringing */
+body.crt .terminal-output,
+body.crt .terminal-output *,
+body.crt .cmd,
+body.crt .cmd * {
+    text-shadow:
+        calc(-1 * var(--crt-aberration)) 0 rgba(255, 60, 60, 0.35),
+        var(--crt-aberration) 0 rgba(60, 220, 255, 0.35),
+        0 0 1px color-mix(in srgb, currentColor var(--crt-glow), transparent),
+        0 0 7px color-mix(in srgb, currentColor var(--crt-glow), transparent);
+}
+
+/* Scanlines, plus a faint bright band rolling down the screen */
+body.crt::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1002;
+    background:
+        linear-gradient(to bottom, transparent, rgba(255, 255, 255, var(--crt-roll)), transparent),
+        repeating-linear-gradient(to bottom, rgba(0, 0, 0, var(--crt-scanlines)) 0 1px, transparent 1px 3px);
+    background-size: 100% 25%, 100% 100%;
+    background-repeat: no-repeat, repeat;
+    animation: crt-roll 8s linear infinite;
+}
+
+/* Dark corners like a curved tube, with a subtle flicker */
+body.crt::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, var(--crt-vignette)) 100%);
+    box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.5);
+    animation: crt-flicker 4s steps(1) infinite;
+}
+
+@keyframes crt-roll {
+    from { background-position: 0 -25%, 0 0; }
+    to   { background-position: 0 125%, 0 0; }
+}
+
+@keyframes crt-flicker {
+    0%, 100% { opacity: 1; }
+    31%      { opacity: 0.92; }
+    32%      { opacity: 1; }
+    77%      { opacity: 0.95; }
+    78%      { opacity: 1; }
+}
+
+/* No rolling or flickering for people who've asked their OS for less motion */
+@media (prefers-reduced-motion: reduce) {
+    body.crt::before,
+    body.crt::after {
+        animation: none;
+    }
+}

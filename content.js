@@ -14,6 +14,16 @@ const link = (url) => ({ kind: "link", url });
 /** A formatted entry: a colored title, an optional date, and a list of bullet points */
 const entry = (title, date, bullets) => ({ kind: "entry", title, date, bullets });
 
+/** Used by contactinfo.txt and the email/linkedin/github commands */
+const CONTACT = {
+    email: "tominekan12@gmail.com",
+    github: "https://github.com/tominekan",
+    linkedin: "https://www.linkedin.com/in/oluwatomisin-adenekan-50b207247/",
+    website: "https://tominekan.netlify.app",
+};
+
+
+
 
 const CONTENT = {
     About: {
@@ -114,9 +124,11 @@ Tools:      Git/GitHub, Bash`),
 
     Contact: {
         "contactinfo.txt": text(`
-Email:    tominekan12@gmail.com
-Github:   https://github.com/tominekan
-Linkedin: https://www.linkedin.com/in/oluwatomisin-adenekan-50b207247/
-Website:  https://tominekan.netlify.app`),
+Email:    ${CONTACT.email}
+Github:   ${CONTACT.github}
+Linkedin: ${CONTACT.linkedin}
+Website:  ${CONTACT.website}
+
+Shortcuts: email, linkedin, github`),
     },
 };
